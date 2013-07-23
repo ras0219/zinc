@@ -25,9 +25,10 @@ endef
 SHOW := $(if $(VERBOSE),@true "",@echo "")
 HIDE := $(if $(VERBOSE),,@)
 
-SOURCEFILES:=$(call find, '*.cpp')
+SRCFILES:=$(call find, '*.cpp')
 OBJFILES:=$(SOURCEFILES: .cpp = .o)
-CXXFLAGS:=-std=c++11
+CXXFLAGS:=-std=c++11 -Ilib/cppzmq
+LDFLAGS:=-lzmq
 CC=$(CXX)
 CCFLAGS=$(CXXFLAGS)
 
@@ -35,7 +36,7 @@ CCFLAGS=$(CXXFLAGS)
 
 ALLDEPS:=$(addsuffix .d, $(SOURCEFILES))
 
-all: zinc
+all: zinc zinc-server
 
 -include $(ALLDEPS)
 
@@ -48,6 +49,6 @@ all: zinc
 	$(SHOW)'COMPILE $<'
 	$(HIDE)$(CXX) $(CPPFLAGS) $(CXXFLAGS) -c -o $@ $<
 
-zinc: $(OBJFILES)
+%: %.o
 	$(SHOW)'LINK $@'
 	$(HIDE)$(CXX) $(LDFLAGS) -o $@ $^
