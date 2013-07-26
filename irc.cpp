@@ -5,7 +5,9 @@ extern "C" {
 #include <cassert>
 #include <cstring>
 #include <iostream>
+#include <sstream>
 #include <stdexcept>
+#include <vector>
 #include <map>
 
 struct IRCSession {
@@ -194,7 +196,9 @@ struct MyBot : public IRCSession {
   MyBot(char const* servername, unsigned int port, char const*
         password, const char* nick_, const char* username, const char*
         realname)
-    : IRCSession{servername, port, password, nick_, username, realname}, nick{nick_} { }
+    : IRCSession{servername, port, password, nick_, username, realname},
+    snacks{3},
+    nick{nick_} { }
 
   virtual void on_connect() {
     std::cout << "MyBot Connected.\n";
@@ -216,16 +220,31 @@ struct MyBot : public IRCSession {
 
     if (m == "-SNACKTIME" or m == "-snacktime")
     {
-      msg(channel, "&botsnack");
-      msg(channel, "^botsnack");
-      msg(channel, "~jumpsnack");
-      msg(channel, "Destult: botsnack");
+      if (snacks < 2) {
+        msg(channel, "Sorry, I don't have enough snacks.");
+        return;
+      } else {
+        snacks -= 2;
+      }
+      static const std::vector<std::string> botsnacks
+      { "&botsnack", "~jumpsnack", ".botsnack", "+botsnack",
+          "~botsnack", "^botsnack" };
+      
+      msg(channel, botsnacks[rand() % botsnacks.size()]);
+      msg(channel, botsnacks[rand() % botsnacks.size()]);
     }
-    if (m == "-SOURCE" or m == "-source")
+    else if (m == "-SOURCE" or m == "-source")
     {
       msg(channel, "https://github.com/ras0219/zinc");
     }
-
+    else if (m == "-botsnack" or m == "-BOTSNACK")
+    {
+      snacks++;
+      std::stringstream ss;
+      ss << "Thanks for the snack! I now have " << snacks << " snack";
+      if (snacks > 1) ss << "s."; else ss << ".";
+      msg(channel, ss.str());
+    }
   }
   virtual void on_privmsg(string_t origin, string_t yourname, string_t m) {
     if (m.substr(0,5) == "join ")
@@ -241,6 +260,7 @@ struct MyBot : public IRCSession {
   }
 
 private:
+  unsigned int snacks;
   std::string nick;
 };
 
