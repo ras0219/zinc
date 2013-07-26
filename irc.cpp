@@ -8,9 +8,6 @@ extern "C" {
 #include <stdexcept>
 #include <map>
 
-template<typename T, typename R, typename ...Args>
-using mem_func_ptr = R (T::*)(Args...);
-
 struct IRCSession {
   irc_session_t* session;
 
@@ -80,10 +77,6 @@ struct IRCSession {
 
 
 struct IRC {
-  
-  using event_subhandler =
-    mem_func_ptr<IRCSession, void, const char*, char const*, char const**, unsigned int>;
-
   // All the callbacks.... :<
   static void event_connect(struct irc_session_s* sess, char const *
                             event, char const * origin, char const **
@@ -114,6 +107,15 @@ struct IRC {
           irc_s->second->on_quit(origin, params[0]);
         else
           irc_s->second->on_quit(origin, "");
+    }
+
+  static void event_join(struct irc_session_s* sess, char const *
+                         event, char const * origin, char const **
+                         params, unsigned int count)
+    {
+      auto irc_s = session_map.find(sess);
+      if (irc_s != session_map.end())
+        irc_s->second->on_join(origin, params[0]);
     }
 
   static void event_channel(struct irc_session_s* sess, char const *
