@@ -221,6 +221,11 @@ struct MyBot : public IRCSession {
       msg(channel, "~jumpsnack");
       msg(channel, "Destult: botsnack");
     }
+    if (m == "-SOURCE" or m == "-source")
+    {
+      msg(channel, "https://github.com/ras0219/zinc");
+    }
+
   }
   virtual void on_privmsg(string_t origin, string_t yourname, string_t m) {
     if (m.substr(0,5) == "join ")
