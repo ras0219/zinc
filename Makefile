@@ -27,8 +27,8 @@ HIDE := $(if $(VERBOSE),,@)
 
 SRCFILES:=$(call find, '*.cpp')
 OBJFILES:=$(SOURCEFILES: .cpp = .o)
-CXXFLAGS:=-std=c++11 -Ilib/cppzmq
-LDFLAGS:=-lzmq
+CXXFLAGS:=-std=c++11 -Ilib/cppzmq -Ilib/libircclient-1.7/include
+LDFLAGS:=
 CC=$(CXX)
 CCFLAGS=$(CXXFLAGS)
 
@@ -36,7 +36,7 @@ CCFLAGS=$(CXXFLAGS)
 
 ALLDEPS:=$(addsuffix .d, $(SOURCEFILES))
 
-all: zinc zinc-server
+all: zinc zinc-server irc
 
 -include $(ALLDEPS)
 
@@ -52,3 +52,5 @@ all: zinc zinc-server
 %: %.o
 	$(SHOW)'LINK $@'
 	$(HIDE)$(CXX) $(LDFLAGS) -o $@ $^
+
+irc: irc.o lib/libircclient-1.7/src/libircclient.a
