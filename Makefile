@@ -53,4 +53,4 @@ all: zinc zinc-server irc
 	$(SHOW)'LINK $@'
 	$(HIDE)$(CXX) $(LDFLAGS) -o $@ $^
 
-irc: irc.o lib/libircclient-1.7/src/libircclient.a
+irc: irc.o ircpp.o lib/libircclient-1.7/src/libircclient.a
