@@ -12,8 +12,11 @@ Currently, zinc is pre-alpha and does not use zmq. However, zmq dependency is pl
 Once ZeroMQ has been taken care of, you need to build libircclient. Do this by entering the lib/libircclient-1.7 directory and building as per usual packages.
 
 > $ cd lib/libircclient-1.7
+>
 > $ ./configure
+>
 > ...
+>
 > $ make
 
 Once you have built libircclient, you can now build the rest of Zinc. In the main directory, execute
