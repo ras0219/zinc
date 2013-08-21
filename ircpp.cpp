@@ -161,5 +161,27 @@ void IRC::event_numeric(struct irc_session_s* sess, unsigned int
     irc_s->second->on_numeric(event, origin, params, count);
 }
 
-irc_callbacks_t IRC::callbacks{0};
+irc_callbacks_t IRC::callbacks{
+  IRC::event_connect, // irc_event_callback_t event_connect;
+  IRC::event_nick, // irc_event_callback_t event_nick;
+  IRC::event_quit, // irc_event_callback_t event_quit;
+  IRC::event_join, // irc_event_callback_t event_join;
+  IRC::event_part, // irc_event_callback_t event_part;
+  IRC::event_mode, // irc_event_callback_t event_mode;
+  IRC::event_umode, // irc_event_callback_t event_umode;
+  IRC::event_topic, // irc_event_callback_t event_topic;
+  IRC::event_kick, // irc_event_callback_t event_kick;
+  IRC::event_channel, // irc_event_callback_t event_channel;
+  IRC::event_privmsg, // irc_event_callback_t event_privmsg;
+  IRC::event_notice, // irc_event_callback_t event_notice;
+  IRC::event_channel_notice, // irc_event_callback_t event_channel_notice;
+  IRC::event_invite, // irc_event_callback_t event_invite;
+  IRC::event_ctcp_req, // irc_event_callback_t event_ctcp_req;
+  IRC::event_ctcp_rep, // irc_event_callback_t event_ctcp_rep;
+  IRC::event_ctcp_action, // irc_event_callback_t event_ctcp_action;
+  IRC::event_unknown, // irc_event_callback_t event_unknown;
+  IRC::event_numeric, // irc_eventcode_callback_t event_numeric;
+  IRC::event_dcc_chat_req, // irc_event_dcc_chat_t event_dcc_chat_req;
+  IRC::event_dcc_send_req // irc_event_dcc_send_t event_dcc_send_req;
+};
 IRC::session_map_t IRC::session_map{};

@@ -81,13 +81,6 @@ private:
 };
 
 int main(int argc, const char** argv) {
-  IRC::callbacks.event_connect = IRC::event_connect;
-  IRC::callbacks.event_nick    = IRC::event_nick;
-  IRC::callbacks.event_quit    = IRC::event_quit;
-  IRC::callbacks.event_channel = IRC::event_channel;
-  IRC::callbacks.event_privmsg = IRC::event_privmsg;
-  IRC::callbacks.event_numeric = IRC::event_numeric;
-
   //MyBot s{"irc.tamu.edu", 6667, 0, "rasalghul", "rasalghul", "Ra's al Ghul"};
   MyBot s{"0xkohen.com", 20158, (argc > 1)?argv[argc-1]:NULL,
       "rasalghul", "rasalghul", "Ra's al Ghul"};

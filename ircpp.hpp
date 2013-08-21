@@ -5,6 +5,7 @@ extern "C" {
 #include "libircclient.h"
 #include "libirc_rfcnumeric.h"
 }
+#include <string>
 #include <map>
 
 struct IRCSession {
@@ -75,6 +76,22 @@ struct IRC {
   static void event_numeric(struct irc_session_s* sess, unsigned int
                             event, char const * origin, char const **
                             params, unsigned int count);
+
+  // As yet unimplemented
+  constexpr static irc_event_callback_t event_part = 0;
+  constexpr static irc_event_callback_t event_mode = 0;
+  constexpr static irc_event_callback_t event_umode = 0;
+  constexpr static irc_event_callback_t event_topic = 0;
+  constexpr static irc_event_callback_t event_kick = 0;
+  constexpr static irc_event_callback_t event_notice = 0;
+  constexpr static irc_event_callback_t event_channel_notice = 0;
+  constexpr static irc_event_callback_t event_invite = 0;
+  constexpr static irc_event_callback_t event_ctcp_req = 0;
+  constexpr static irc_event_callback_t event_ctcp_rep = 0;
+  constexpr static irc_event_callback_t event_ctcp_action = 0;
+  constexpr static irc_event_callback_t event_unknown = 0;
+  constexpr static irc_event_dcc_chat_t event_dcc_chat_req = 0;
+  constexpr static irc_event_dcc_send_t event_dcc_send_req = 0;
 
   // Static member tables
   static irc_callbacks_t callbacks;
