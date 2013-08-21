@@ -3,7 +3,7 @@
 #include <stdarg.h>
 #include <unistd.h>
 #include <getopt.h>
-#if !defined(AMIGA) && !defined(__mac_os)
+#if !defined(AMIGA) && !defined(__mac_os) && !defined(__APPLE__)
 #include <malloc.h>
 #endif
 #include <string.h>

@@ -22,10 +22,10 @@ TCLINCLUDE=-I/usr/include/tcl$(TCLVERSION)
 CFLAGS=-g -Wall
 
 
-all:	megahal tcllib pythonmodule perlmodule
+all:	megahal.bin tcllib pythonmodule perlmodule
 
-megahal: main.o megahal.o megahal.h backup
-	gcc $(CFLAGS) -o megahal megahal.o main.o -lm $(DEBUG)
+megahal.bin: main.o megahal.o megahal.h backup
+	gcc $(CFLAGS) -o megahal.bin megahal.o main.o -lm $(DEBUG)
 	@echo "MegaHAL is up to date"
 
 megahal.o: megahal.c megahal.h
@@ -59,7 +59,7 @@ dist: clean version
 	(cd .. ; tar -czvf megahal-`cat megahal/VERSION`.tar.gz megahal/ ; )
 
 clean:
-	rm -f megahal
+	rm -f megahal.bin
 	rm -rf build
 	if [ -f Megahal/Makefile ]; then \
 	  cd Megahal ; make clean; \
