@@ -8,18 +8,100 @@ extern "C" {
 #include <cstring>
 /*#include <type>*/
 #include <iostream>
+#include <iomanip>
+#include "zmq.hpp"
 #include <sstream>
 #include <stdexcept>
 #include <vector>
+#include <deque>
 #include <map>
+
+template<class MessageType>
+struct ZMQService {
+  ZMQService(zmq::context_t& ctx) : socket(ctx, ZMQ_REQ) {}
+
+  template<class OutputIterator>
+  void add_to_zmq_pollfds(OutputIterator begin) {
+    short flags = ZMQ_POLLIN;
+    if (!queue.empty())
+      flags |= ZMQ_POLLOUT;
+    *begin = { socket, 0, flags, 0 };
+    ++begin;
+  }
+
+  template<class InputIterator>
+  void process_zmq_pollfds(InputIterator begin, InputIterator end) {
+    while (begin != end) {
+      if (socket != begin->socket)
+        continue;
+      if (begin->revents & ZMQ_POLLIN) {
+        zmq::message_t msg;
+        socket.recv(&msg);
+        response(queue.front(), msg);
+        queue.pop_front();
+      } else if (begin->revents & ZMQ_POLLOUT) {
+        // Should never be empty at this time
+        assert(!queue.empty());
+        zmq::message_t msg = request(queue.front());
+        socket.send(msg);
+      } else if (begin->revents & ZMQ_POLLERR) {
+        // Uhhh..... not sure what to do here halp
+        throw std::runtime_error{"Halp. ZMQ_POLLERR."};
+      }
+
+      ++begin;
+    }
+  }
+
+  void send(const MessageType& m) { queue.push_back(m); }
+  template<class ... Args>
+  void send(Args&&... args) { queue.emplace_back(args...); }
+
+  virtual zmq::message_t request(const MessageType&) = 0;
+  virtual void response(const MessageType&, zmq::message_t&) = 0;
+
+  zmq::socket_t socket;
+  std::deque<MessageType> queue;
+};
+
+enum megahal_cmd { LEARN, REPLY };
+
+typedef std::tuple<std::string,
+                   megahal_cmd,
+                   std::function< void(const std::string&) > > st_fn_pair;
+
+struct MegaHalService : ZMQService<st_fn_pair> {
+  MegaHalService(zmq::context_t& ctx, const char* addr)
+    : ZMQService<st_fn_pair>(ctx)
+    {
+      socket.connect(addr);
+    }
+
+  virtual zmq::message_t request(const st_fn_pair& m) {
+    const std::string& st = std::get<0>(m);
+    zmq::message_t msg(st.size() + 3);
+    if (std::get<1>(m) == LEARN)
+      memcpy(static_cast<char*>(msg.data()), "LRN", 3);
+    else
+      memcpy(static_cast<char*>(msg.data()), "REP", 3);
+    memcpy(static_cast<char*>(msg.data()) + 3, st.data(), st.size());
+    return msg;
+  }
+  virtual void response(const st_fn_pair& m, zmq::message_t& msg) {
+    std::string st((const char*)msg.data(), msg.size());
+    std::get<2>(m)(st);
+  }
+};
 
 struct MyBot : public IRCSession {
   MyBot(char const* servername, unsigned int port, char const*
         password, const char* nick_, const char* username, const char*
-        realname)
+        realname, ZMQService<st_fn_pair>& srv)
     : IRCSession{servername, port, password, nick_, username, realname},
     snacks{3},
-    nick{nick_} { }
+    nick{nick_},
+    privmsg_srv(srv)
+    { }
 
   virtual void on_connect() {
     std::cout << "MyBot Connected.\n";
@@ -67,25 +149,35 @@ struct MyBot : public IRCSession {
       ss << "Thanks for the snack! I now have " << snacks << " snack";
       if (snacks > 1) ss << "s."; else ss << ".";
       msg(channel, ss.str());
+    } else if (m.substr(0, nick.size() + 2) == nick + ": ") {
+      // I'm hilightted! I'm special! Let's give them a special treat!
+      privmsg_srv.send(m.substr(nick.size() + 2), REPLY, [=](const std::string& reply) {
+          msg(channel, reply);
+        });
+    } else {
+      // Message wasn't a command. We should remove highlights before learning...
+      // On second thought that's hard.... forget about it
+      if (m.size() == 0)
+        return;
+      if (m[0] == '<') {
+        auto it = m.begin();
+        while (it != m.end() && *it != '>') ++it;
+        if (it != m.end()) ++it;
+        if (it != m.end()) ++it;
+        std::string new_msg = std::string(it, m.end());
+        privmsg_srv.send(new_msg, LEARN, [=](const std::string& reply) {});
+      } else {
+        privmsg_srv.send(m, LEARN, [=](const std::string& reply) {});
+      }
     }
   }
   virtual void on_privmsg(string_t origin, string_t yourname, string_t m) {
     try {
       std::cout << "<" << origin << "> " << m << "\n";
-      if (m.substr(0,5) == "join ")
-        join(m.substr(5));
-      else if (m.substr(0,6) == "-load ")
-      {
-        std::string s = m.substr(6);
-        for (char c : s)
-          if (!std::isalnum(c) && c != '_')
-          {
-            msg(origin, "Invalid load");
-            return;
-          }
-        // load is valid
-        
-      }
+
+      privmsg_srv.send(m, REPLY, [=](const std::string& reply) {
+          msg(origin, reply);
+        });
     } catch (std::exception& e) {
       msg(origin, e.what());
     }
@@ -102,28 +194,60 @@ struct MyBot : public IRCSession {
 private:
   unsigned int snacks;
   std::string nick;
+  ZMQService<st_fn_pair>& privmsg_srv;
+};
+
+struct zmq_pollitem_adapter {
+  int fd;
+  short events;
+  short revents;
+  operator zmq::pollitem_t() { return {0, fd, events, revents}; }
 };
 
 int main(int argc, const char** argv) {
-  //MyBot s{"irc.tamu.edu", 6667, 0, "rasalghul", "rasalghul", "Ra's al Ghul"};
-  MyBot s{"0xkohen.com", 20158, (argc > 1)?argv[argc-1]:NULL,
-      "rasalghul", "rasalghul", "Ra's al Ghul"};
+  zmq::context_t context(1);
 
-  std::vector<pollfd> pollfds;
+  MegaHalService mhserv(context, "tcp://localhost:5555");
+
+  MyBot s{"0xkohen.com", 20158, (argc > 1)?argv[argc-1]:NULL,
+      "rasalghul", "rasalghul", "Ra's al Ghul", mhserv};
+
+  std::vector<zmq::pollitem_t> pollfds;
 
   while (true) {
     pollfds.clear();
+
+    std::cerr << "Adding events.\n";
+
+    // Add the zmq poll descriptors to the beginning
+    mhserv.add_to_zmq_pollfds(std::back_inserter(pollfds));
 
     // Mark where irc's pollfds begin
     auto irc_begin_nth = pollfds.size();
 
     // Add the irc poll descriptors to the end
-    s.add_poll_descriptors(std::back_inserter(pollfds));
+    s.add_poll_descriptors<zmq_pollitem_adapter, ZMQ_POLLIN, ZMQ_POLLOUT>
+      (std::back_inserter(pollfds));
+
+    for (auto fd : pollfds) {
+      std::cerr << std::setw(15) << fd.socket
+                << std::setw(10) << fd.fd
+                << std::setw(10) << fd.events
+                << "\n";
+    }
+
+    std::cerr << "Waiting for events.\n";
 
     // Block for events
-    poll(pollfds.data(), pollfds.size(), -1);
+    zmq::poll(pollfds.data(), pollfds.size(), -1);
+
+    std::cerr << "Proccessing events.\n";
+
+    // Process zmq poll descriptors
+    mhserv.process_zmq_pollfds(pollfds.begin(), pollfds.begin() + irc_begin_nth);
 
     // Process irc poll descriptors
-    s.process_poll_descriptors(pollfds.begin() + irc_begin_nth, pollfds.end());
+    s.process_poll_descriptors<ZMQ_POLLIN, ZMQ_POLLOUT>
+      (pollfds.begin() + irc_begin_nth, pollfds.end());
   }
 }

@@ -57,7 +57,10 @@ struct IRCSession {
   
   // Recommend calling this with a std::vector<struct pollfd> like
   //   ircsession.add_poll_descriptors(std::back_inserter(myvec));
-  template<class OutputType = pollfd, class OutputIterator>
+  template<class OutputType = pollfd,
+           short INEVENTS=POLLIN | POLLPRI,
+           short OUTEVENTS=POLLOUT | POLLERR | POLLHUP,
+           class OutputIterator>
   void add_poll_descriptors(OutputIterator first) {
     fd_set in_set, out_set;
     FD_ZERO(&in_set);
@@ -71,10 +74,7 @@ struct IRCSession {
       if (FD_ISSET(x, &in_set)) events |= INEVENTS;
       if (FD_ISSET(x, &out_set)) events |= OUTEVENTS;
       if (events) {
-        OutputType v{};
-        v.fd = x;
-        v.events = events;
-        *first = v;
+        *first = OutputType({x, events, 0});
         ++first;
       }
     }
@@ -84,7 +84,9 @@ struct IRCSession {
   // otherwise, go for it
   //
   // Ex. ircsession.process_poll_descriptors(myvec.begin(), myvec.end());
-  template<class InputIterator>
+  template<short INEVENTS=POLLIN | POLLPRI,
+           short OUTEVENTS=POLLOUT | POLLERR | POLLHUP,
+           class InputIterator>
   void process_poll_descriptors(InputIterator begin, InputIterator end) {
     fd_set in_set, out_set;
     FD_ZERO(&in_set);
@@ -106,8 +108,6 @@ struct IRCSession {
   void resolve_errno();
 
   irc_session_t* session;
-  constexpr static short INEVENTS = POLLIN | POLLPRI;
-  constexpr static short OUTEVENTS = POLLOUT | POLLERR | POLLHUP;
 };
 
 struct IRC {
