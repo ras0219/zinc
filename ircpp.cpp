@@ -86,6 +86,25 @@ void IRCSession::run() {
     throw std::runtime_error{"Could not start main irc listening loop."};
 }
 
+// Functions wrapping select statements
+void IRCSession::add_select_descriptors(fd_set* in_set, fd_set* out_set, int* maxfd) {
+  if (irc_add_select_descriptors(session, in_set, out_set, maxfd))
+    throw std::runtime_error{"Could not add select descriptors; session not connected."};
+}
+
+void IRCSession::process_select_descriptors(fd_set* in_set, fd_set* out_set) {
+  if (irc_process_select_descriptors(session, in_set, out_set))
+    resolve_errno();
+}
+
+// Handle errors
+void IRCSession::resolve_errno() {
+  int err = irc_errno(session);
+  const char* msg = irc_strerror(err);
+  std::stringstream ss;
+  ss << "Irc errno " << err << ": " << msg;
+  throw std::runtime_error{ss.str()};
+}
 
 // All the callbacks.... :<
 void IRC::event_connect(struct irc_session_s* sess, char const *

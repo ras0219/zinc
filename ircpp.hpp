@@ -1,9 +1,13 @@
 #ifndef _IRCPP_HPP_
 #define _IRCPP_HPP_
 
+#include <iostream>
+
 extern "C" {
 #include "libircclient.h"
 #include "libirc_rfcnumeric.h"
+#include "sys/select.h"
+#include "poll.h"
 }
 #include <string>
 #include <map>
@@ -44,7 +48,66 @@ struct IRCSession {
   // Used when there is only one session and we want the default handler
   void run();
 
+  // Fill an fdset with irc sockets
+  // Basically calls irc_add_select_descriptors
+  void add_select_descriptors(fd_set* in_set, fd_set* out_set, int* maxfd);
+
+  // Similar to add_select_descriptors
+  void process_select_descriptors(fd_set* in_set, fd_set* out_set);
+  
+  // Recommend calling this with a std::vector<struct pollfd> like
+  //   ircsession.add_poll_descriptors(std::back_inserter(myvec));
+  template<class OutputType = pollfd, class OutputIterator>
+  void add_poll_descriptors(OutputIterator first) {
+    fd_set in_set, out_set;
+    FD_ZERO(&in_set);
+    FD_ZERO(&out_set);
+    int maxfd = -1;
+
+    add_select_descriptors(&in_set, &out_set, &maxfd);
+
+    for(int x = 0; x <= maxfd; ++x) {
+      short events = 0;
+      if (FD_ISSET(x, &in_set)) events |= INEVENTS;
+      if (FD_ISSET(x, &out_set)) events |= OUTEVENTS;
+      if (events) {
+        OutputType v{};
+        v.fd = x;
+        v.events = events;
+        *first = v;
+        ++first;
+      }
+    }
+  }
+
+  // This function is a bit inefficient if you have multiple sessions;
+  // otherwise, go for it
+  //
+  // Ex. ircsession.process_poll_descriptors(myvec.begin(), myvec.end());
+  template<class InputIterator>
+  void process_poll_descriptors(InputIterator begin, InputIterator end) {
+    fd_set in_set, out_set;
+    FD_ZERO(&in_set);
+    FD_ZERO(&out_set);
+
+    while (begin != end) {
+      if (begin->fd >= 0 && (begin->revents & INEVENTS))
+        FD_SET(begin->fd, &in_set);
+
+      if (begin->fd >= 0 && (begin->revents & OUTEVENTS))
+        FD_SET(begin->fd, &out_set);
+
+      ++begin;
+    }
+
+    process_select_descriptors(&in_set, &out_set);
+  }
+
+  void resolve_errno();
+
   irc_session_t* session;
+  constexpr static short INEVENTS = POLLIN | POLLPRI;
+  constexpr static short OUTEVENTS = POLLOUT | POLLERR | POLLHUP;
 };
 
 struct IRC {
