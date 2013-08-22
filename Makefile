@@ -27,16 +27,18 @@ HIDE := $(if $(VERBOSE),,@)
 
 SRCFILES:=$(call find, '*.cpp')
 OBJFILES:=$(SOURCEFILES: .cpp = .o)
-CXXFLAGS:=-std=c++11 -Ilib/cppzmq -Ilib/libircclient-1.7/include
-LDFLAGS:=
+CXXFLAGS:=-std=c++11 -Ilib/cppzmq -Ilib/libircclient-1.7/include -Imegahal-9.1.1
+LDFLAGS:=-lzmq -ldl
 CC=$(CXX)
 CCFLAGS=$(CXXFLAGS)
 
 ###########################################################
 
-ALLDEPS:=$(addsuffix .d, $(SOURCEFILES))
+ALLDEPS:=$(addsuffix .d, $(SRCFILES))
 
-all: zinc zinc-server irc
+all: zinc zinc-server irc main
+
+$(OBJFILES): | $(ALLDEPS)
 
 -include $(ALLDEPS)
 
@@ -54,3 +56,10 @@ all: zinc zinc-server irc
 	$(HIDE)$(CXX) $(LDFLAGS) -o $@ $^
 
 irc: irc.o ircpp.o lib/libircclient-1.7/src/libircclient.a
+
+#.PHONY: megahal-9.1.1/megahal.o
+
+megahal-9.1.1/megahal.o:
+	$(MAKE) -C megahal-9.1.1 megahal.o
+
+main: main.o megahal-9.1.1/megahal.o
