@@ -131,6 +131,8 @@ char *megahal_input(char *prompt);
 
 void megahal_cleanup(void);
 
+void megahal_save(void);
+
 /*===========================================================================*/
 
 #endif /* MEGAHAL_H  */

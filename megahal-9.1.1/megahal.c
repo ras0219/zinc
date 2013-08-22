@@ -606,7 +606,10 @@ void megahal_cleanup(void)
 #endif
 }
 
-
+void megahal_save(void)
+{
+    save_model("megahal.brn", model);
+}
 
 /*---------------------------------------------------------------------------*/
 
