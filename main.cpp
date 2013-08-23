@@ -1,7 +1,6 @@
 #include <iostream>
 #include "zmq.hpp"
 #include <unistd.h>
-#include "plugnplay.hpp"
 #include <cstring>
 #include <csignal>
 
