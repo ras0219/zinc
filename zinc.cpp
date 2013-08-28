@@ -8,13 +8,16 @@ extern "C" {
 #include <cstring>
 /*#include <type>*/
 #include <iostream>
+#include <fstream>
 #include <iomanip>
-#include "zmq.hpp"
 #include <sstream>
 #include <stdexcept>
 #include <vector>
 #include <deque>
 #include <map>
+
+#include "zmq.hpp"
+#include "JSON.h"
 
 template<class MessageType>
 struct ZMQService {
@@ -206,13 +209,109 @@ struct zmq_pollitem_adapter {
   operator zmq::pollitem_t() { return {0, fd, events, revents}; }
 };
 
+using namespace std;
+
+// from StackOverflow
+// http://stackoverflow.com/questions/2602013/read-whole-ascii-file-into-c-stdstring
+// Modified for unicode
+wstring get_file_contents(const char *filename)
+{
+  wifstream in(filename, ios::in | ios::binary);
+  if (in)
+  {
+    wstring contents;
+    in.seekg(0, ios::end);
+    contents.resize(in.tellg());
+    in.seekg(0, ios::beg);
+    in.read(&contents[0], contents.size());
+    in.close();
+    return(contents);
+  }
+  throw(errno);
+}
+
+map<wstring, wstring> string_configs = {
+  {L"brainsocket", L"tcp://localhost:5555"},
+  {L"serveraddr", L"irc.freenode.net"},
+  {L"serverpass", L""},
+  {L"username", L"rasalghul"},
+  {L"nickname", L"rasalghul"},
+  {L"realname", L"Ra's al Ghul"}
+};
+map<wstring, int> num_configs = {
+  {L"serverport", 6667}
+};
+
+// Dummy
+std::string get_locale_string(const std::string & s)
+{
+  return s;
+}
+
+// Real worker
+std::string get_locale_string(const std::wstring & s)
+{
+  const wchar_t * cs = s.c_str();
+  const size_t wn = std::wcsrtombs(NULL, &cs, 0, NULL);
+
+  if (wn == size_t(-1))
+  {
+    std::cout << "Error in wcsrtombs(): " << errno << std::endl;
+    return "";
+  }
+
+  std::vector<char> buf(wn + 1);
+  const size_t wn_again = std::wcsrtombs(buf.data(), &cs, wn + 1, NULL);
+
+  if (wn_again == size_t(-1))
+  {
+    std::cout << "Error in wcsrtombs(): " << errno << std::endl;
+    return "";
+  }
+
+  assert(cs == NULL); // successful conversion
+
+  return std::string(buf.data(), wn);
+}
+
 int main(int argc, const char** argv) {
   zmq::context_t context(1);
 
-  MegaHalService mhserv(context, "tcp://localhost:5555");
+  if (argc > 1) {
+    wstring config = get_file_contents(argv[1]);
+    JSONValue *value = JSON::Parse(config.c_str());
 
-  MyBot s{"0xkohen.com", 20158, (argc > 1)?argv[argc-1]:NULL,
-      "rasalghul", "rasalghul", "Ra's al Ghul", mhserv};
+    if (value == nullptr)
+      throw runtime_error("Failed to parse config file");
+
+    if (not value->IsObject())
+      throw runtime_error("Invalid config file");
+
+    JSONObject root = value->AsObject();
+
+    for (auto p : root)
+      if (p.second->IsString())
+        string_configs.insert({p.first, p.second->AsString()});
+      else if (p.second->IsNumber())
+        num_configs.insert({p.first, (int)round(p.second->AsNumber())});
+  }
+
+  // LET THE DEMONS FLY! TIME TO CAST SOME CHARS!
+  MegaHalService mhserv(context, get_locale_string(string_configs[L"brainsocket"]).c_str());
+
+  const char* serverpass;
+  if (string_configs[L"serverpass"].empty())
+    serverpass = NULL;
+  else
+    serverpass = get_locale_string(string_configs[L"serverpass"]).c_str();
+
+  MyBot s(get_locale_string(string_configs[L"serveraddr"]).c_str(),
+          num_configs[L"serverport"],
+          serverpass,
+          get_locale_string(string_configs[L"username"]).c_str(),
+          get_locale_string(string_configs[L"nickname"]).c_str(),
+          get_locale_string(string_configs[L"realname"]).c_str(),
+          mhserv);
 
   std::vector<zmq::pollitem_t> pollfds;
 
