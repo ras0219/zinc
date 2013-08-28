@@ -131,11 +131,12 @@ void IRC::event_quit(struct irc_session_s* sess, char const *
                      params, unsigned int count)
 {
   auto irc_s = session_map.find(sess);
-  if (irc_s != session_map.end())
+  if (irc_s != session_map.end()) {
     if (count == 1)
       irc_s->second->on_quit(origin, params[0]);
     else
       irc_s->second->on_quit(origin, "");
+  }
 }
 
 void IRC::event_join(struct irc_session_s* sess, char const *
@@ -152,11 +153,12 @@ void IRC::event_channel(struct irc_session_s* sess, char const *
                         params, unsigned int count)
 {
   auto irc_s = session_map.find(sess);
-  if (irc_s != session_map.end())
+  if (irc_s != session_map.end()) {
     if (count == 2)
       irc_s->second->on_channel(origin, params[0], params[1]);
     else
       irc_s->second->on_channel(origin, params[0], "");
+  }
 }
 
 void IRC::event_privmsg(struct irc_session_s* sess, char const *
@@ -164,11 +166,12 @@ void IRC::event_privmsg(struct irc_session_s* sess, char const *
                         params, unsigned int count)
 {
   auto irc_s = session_map.find(sess);
-  if (irc_s != session_map.end())
+  if (irc_s != session_map.end()) {
     if (count == 2)
       irc_s->second->on_privmsg(origin, params[0], params[1]);
     else
       irc_s->second->on_privmsg(origin, params[0], "");
+  }
 }
 
 void IRC::event_numeric(struct irc_session_s* sess, unsigned int
