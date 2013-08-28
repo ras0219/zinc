@@ -16,11 +16,11 @@ set(CMAKE_CXX_FLAGS_MINSIZEREL     "-Os -DNDEBUG")
 set(CMAKE_CXX_FLAGS_RELEASE        "-O4 -DNDEBUG")
 set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "-O2 -g")
 
-add_executable(zinc zinc.cpp)
+add_executable(zinc zinc.cpp ircpp.cpp)
 target_link_libraries(zinc
                       ${CMAKE_CURRENT_SOURCE_DIR}/lib/libircclient-1.7/src/libircclient.a
                       ${ZMQ_LIBRARIES})
 
 
-add_executable(megabrain megabrain/megabrain.cpp megahal-9.1.1/megahal.c)
+add_executable(megabrain megabrain/megabrain.cpp megabrain/megahal-9.1.1/megahal.c)
 target_link_libraries(megabrain ${ZMQ_LIBRARIES})
