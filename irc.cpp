@@ -151,7 +151,9 @@ struct MyBot : public IRCSession {
       msg(channel, ss.str());
     } else if (m.substr(0, nick.size() + 2) == nick + ": ") {
       // I'm hilightted! I'm special! Let's give them a special treat!
-      privmsg_srv.send(m.substr(nick.size() + 2), REPLY, [=](const std::string& reply) {
+      std::string newmsg = m.substr(nick.size() + 2);
+      std::cout << "<" << channel << "/" << origin << "> " << newmsg << "\n";
+      privmsg_srv.send(newmsg, REPLY, [=](const std::string& reply) {
           msg(channel, reply);
         });
     } else {
@@ -217,8 +219,6 @@ int main(int argc, const char** argv) {
   while (true) {
     pollfds.clear();
 
-    std::cerr << "Adding events.\n";
-
     // Add the zmq poll descriptors to the beginning
     mhserv.add_to_zmq_pollfds(std::back_inserter(pollfds));
 
@@ -229,19 +229,8 @@ int main(int argc, const char** argv) {
     s.add_poll_descriptors<zmq_pollitem_adapter, ZMQ_POLLIN, ZMQ_POLLOUT>
       (std::back_inserter(pollfds));
 
-    for (auto fd : pollfds) {
-      std::cerr << std::setw(15) << fd.socket
-                << std::setw(10) << fd.fd
-                << std::setw(10) << fd.events
-                << "\n";
-    }
-
-    std::cerr << "Waiting for events.\n";
-
     // Block for events
     zmq::poll(pollfds.data(), pollfds.size(), -1);
-
-    std::cerr << "Proccessing events.\n";
 
     // Process zmq poll descriptors
     mhserv.process_zmq_pollfds(pollfds.begin(), pollfds.begin() + irc_begin_nth);
