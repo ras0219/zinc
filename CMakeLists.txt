@@ -1,6 +1,8 @@
 cmake_minimum_required (VERSION 2.6)
 project (zinc)
 
+add_subdirectory(lib/simplejson)
+
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_SOURCE_DIR}/build_aux/cmake/")
 find_package(ZMQ REQUIRED)
 
