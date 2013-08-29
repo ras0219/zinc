@@ -1,6 +1,8 @@
 #ifndef _ZINC_PLUGIN_HPP_
 #define _ZINC_PLUGIN_HPP_
 
+#include <cstddef>
+
 typedef const char* str_t;
 
 namespace pnp {
@@ -11,6 +13,7 @@ namespace pnp {
     // Maybe a descriptor here, like a timestamp
   };
 
+  struct Context;
   struct ContextVTable {
     void (*reply)(Context* ctx, str_t msg);
     void (*irc_join)(Context* ctx, str_t channel);
@@ -22,6 +25,7 @@ namespace pnp {
 
   typedef void (*command_cb)(Context* ctx, str_t msg);
 
+  struct PluginHost;
   struct PluginHostVTable {
     int (*register_command)(PluginHost* ctx, str_t cmd, command_cb cb);
   };
@@ -44,7 +48,7 @@ namespace pnp {
     PluginHostThunk() : PluginHost{&static_vtable} {}
 
     static int rc_thunk(PluginHost* ctx, str_t arg1, command_cb arg2) {
-      static_cast<P*>(ctx)->register_command(arg, arg2);
+      return static_cast<P*>(ctx)->register_command(arg1, arg2);
     }
 
     static PluginHostVTable static_vtable;
@@ -56,23 +60,23 @@ namespace pnp {
   struct ContextThunk : Context {
     ContextThunk() : Context{&static_vtable} {}
 
-    static void reply_thunk(Context* ctx, str_t msg) {
-      static_cast<C*>(ctx)->reply(arg, arg2);
+    static void reply_thunk(Context* ctx, str_t arg1) {
+      static_cast<C*>(ctx)->reply(arg1);
     }
-    static void irc_join_thunk(Context* ctx, str_t channel) {
-      static_cast<C*>(ctx)->irc_join(arg, arg2);
+    static void irc_join_thunk(Context* ctx, str_t arg1) {
+      static_cast<C*>(ctx)->irc_join(arg1);
     }
-    static void irc_msg_thunk(Context* ctx, str_t target, str_t msg) {
-      static_cast<C*>(ctx)->irc_msg(arg, arg2);
+    static void irc_msg_thunk(Context* ctx, str_t arg1, str_t arg2) {
+      static_cast<C*>(ctx)->irc_msg(arg1, arg2);
     }
 
     static ContextVTable static_vtable;
   };
   template<class P>
-  ContextVTable Context<P>::static_vtable = {
-    &Context<P>::reply_thunk,
-    &Context<P>::irc_join_thunk,
-    &Context<P>::irc_msg_thunk
+  ContextVTable ContextThunk<P>::static_vtable = {
+    &ContextThunk<P>::reply_thunk,
+    &ContextThunk<P>::irc_join_thunk,
+    &ContextThunk<P>::irc_msg_thunk
   };
 
 

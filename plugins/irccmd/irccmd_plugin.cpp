@@ -1,21 +1,26 @@
+#include <iostream>
 #include <cassert>
 #include <zinc_plugin>
 
 using namespace std;
 using namespace pnp;
 
-namespace HelloWorldPlugin
+namespace IrcCmdPlugin
 {
-  void sayhello(Context* ctx, str_t remainder) {
-    ctx->vtable->reply(ctx, "Hello, World!");
+  void joinchannel(Context* ctx, str_t remainder) {
+    if (remainder == nullptr or *remainder == 0) {
+      ctx->vtable->reply(ctx, "Usage: -join <channel>");
+      return;
+    }
+    ctx->vtable->irc_join(ctx, remainder);
   }
 
   void install(PluginHost* host) {
-    host->vtable->register_command(host, "helloworld", &sayhello);
+    host->vtable->register_command(host, "join", &joinchannel);
   }
 
-  static str_t plugin_name = "HelloWorldPlugin";
-  static SemanticVersion plugin_version = { 0, 2, 0 };
+  static str_t plugin_name = "IrcCmd";
+  static SemanticVersion plugin_version = { 0, 1, 0 };
 
   static PluginBase plugbase = {
     &install,
@@ -26,7 +31,7 @@ namespace HelloWorldPlugin
 
 PluginBase* get_plugin(std::size_t n) {
   assert(n == 0);
-  return &HelloWorldPlugin::plugbase;
+  return &IrcCmdPlugin::plugbase;
 }
 
 pnp_module_t pnp_module =

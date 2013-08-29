@@ -6,7 +6,7 @@ add_subdirectory(plugins)
 
 set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/build_aux/cmake/")
 find_package(ZMQ REQUIRED)
-find_package(BOOST REQUIRED)
+find_package(Boost COMPONENTS system filesystem REQUIRED)
 
 include_directories(lib/libircclient-1.7/include)
 include_directories(lib/cppzmq)
@@ -25,7 +25,8 @@ add_executable(zinc zinc.cpp ircpp.cpp plugins/zinc_plugin_host.cpp)
 target_link_libraries(zinc
                       ${CMAKE_CURRENT_SOURCE_DIR}/lib/libircclient-1.7/src/libircclient.a
                       json
-                      ${BOOST_LIBRARIES}
+                      ${Boost_FILESYSTEM_LIBRARIES}
+                      ${Boost_SYSTEM_LIBRARIES}
                       ${ZMQ_LIBRARIES})
 
 

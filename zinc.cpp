@@ -49,7 +49,7 @@ struct MegaHalService : ZMQService<st_fn_pair> {
   }
 };
 
-struct IRCChannelContext : ContextThunk<IRCChannelContext> {
+struct IRCChannelContext : pnp::ContextThunk<IRCChannelContext> {
   IRCChannelContext(str_t channel, IRCSession& mb) : chan(channel), irc(mb) {}
   
   void reply(str_t msg) {
@@ -58,10 +58,7 @@ struct IRCChannelContext : ContextThunk<IRCChannelContext> {
   void irc_join(str_t channel) {
     irc.join(channel);
   }
-  void irc_quit(str_t channel) {
-    std::cerr << "Attempted to quit channel '" << channel << "'" << std::endl;
-  }
-  void irc_message(str_t target, str_t msg) {
+  void irc_msg(str_t target, str_t msg) {
     irc.msg(target, msg);
   }
   
@@ -82,7 +79,6 @@ struct MyBot : public IRCSession {
 
   virtual void on_connect() {
     std::cout << "MyBot Connected.\n";
-    join("#bottest");
   }
   virtual void on_nick(string_t origin, string_t nick) { }
   virtual void on_quit(string_t origin, string_t reason) { }
@@ -92,6 +88,9 @@ struct MyBot : public IRCSession {
       // msg(channel, "Fear not, I have arrived.");
 
       // do... something?
+      std::cout << "Succesfully joined <" << channel << ">" << std::endl;
+    } else {
+      std::cout << origin << " succesfully joined <" << channel << ">" << std::endl;
     }
   }
   virtual void on_part(string_t origin, string_t channel, string_t reason) { }
@@ -124,9 +123,12 @@ struct MyBot : public IRCSession {
     {
       // I'm hilightted! I'm special! Let's give them a special treat!
       std::string newmsg = m + nick.size() + 2;
-      std::cout << "<" << channel << "/" << origin << "> " << newmsg << "\n";
+      std::cout << "<" << channel << "/" << origin << "> " << newmsg << std::endl;
+
+      std::string channel_s = channel;
       privmsg_srv.send(newmsg, REPLY, [=](const std::string& reply) {
-          msg(channel, reply.c_str());
+          std::cout << "Sending to <" << channel << ">: " << reply << std::endl;
+          msg(channel_s.c_str(), reply.c_str());
         });
     } else {
       // Message wasn't a command. We should remove highlights before learning...
@@ -150,12 +152,37 @@ struct MyBot : public IRCSession {
     try {
       std::cout << "<" << origin << "> " << m << "\n";
 
-      if (m != nullptr and *m == '#')
-        join(m);
+      if (m == nullptr)
+        // Ignore empty messages
+        return;
 
-      privmsg_srv.send(m, REPLY, [=](const std::string& reply) {
-          msg(origin, reply.c_str());
-        });
+      if (m[0] == '-') {
+        // Process a command
+        const char* eoc = strchr(m, ' ');
+
+        std::string cmd;
+        if (eoc == NULL)
+          cmd = m + 1;
+        else
+          cmd = std::string(m + 1, eoc++);
+
+        // Lowercase all commands.
+        transform(cmd.begin(), cmd.end(), cmd.begin(), tolower);
+
+        // std::cout << "[" << cmd << "] ";
+        // if (eoc != nullptr)
+        //   std::cout << "[" << eoc << "]";
+        // else
+        //   std::cout << "nullptr";
+        // std::cout << std::endl;
+
+        handle_command(cmd, origin, origin, eoc);
+      } else {
+        std::string origin_s = origin;
+        privmsg_srv.send(m, REPLY, [=](const std::string& reply) {
+            msg(origin_s.c_str(), reply.c_str());
+          });
+      }
     } catch (std::exception& e) {
       msg(origin, e.what());
     }
@@ -167,21 +194,6 @@ struct MyBot : public IRCSession {
     for (unsigned int n = 0; n < count; ++n) {
       std::cout << params[n] << "\n";
     }
-  }
-
-  virtual void snacktime(string_t channel) {
-    if (snacks < 2) {
-      msg(channel, "Sorry, I don't have enough snacks.");
-      return;
-    } else {
-      snacks -= 2;
-    }
-    static const std::vector<std::string> botsnacks
-    { "&botsnack", "~jumpsnack", ".botsnack", "+botsnack",
-        "~botsnack", "^botsnack" };
-      
-    msg(channel, botsnacks[rand() % botsnacks.size()].c_str());
-    msg(channel, botsnacks[rand() % botsnacks.size()].c_str());
   }
 
   void handle_command(const std::string& cmd, string_t origin, string_t channel, string_t rem) {
@@ -210,7 +222,22 @@ struct MyBot : public IRCSession {
       }
   }
 
-  std::map<std::string, command_cb> cmd_handlers;
+  void snacktime(string_t channel) {
+    if (snacks < 2) {
+      msg(channel, "Sorry, I don't have enough snacks.");
+      return;
+    } else {
+      snacks -= 2;
+    }
+    static const std::vector<std::string> botsnacks
+    { "&botsnack", "~jumpsnack", ".botsnack", "+botsnack",
+        "~botsnack", "^botsnack" };
+      
+    msg(channel, botsnacks[rand() % botsnacks.size()].c_str());
+    msg(channel, botsnacks[rand() % botsnacks.size()].c_str());
+  }
+
+  std::map<std::string, pnp::command_cb> cmd_handlers;
 
 private:
   unsigned int snacks;
@@ -343,10 +370,10 @@ int main(int argc, const char** argv) {
 
   pnp::ZincPluginHost zph;
 
-  struct ZincPluginHostProxy : PluginHostProxyThunk<ZincPluginHostProxy> {
+  struct ZincPluginHostProxy : pnp::PluginHostThunk<ZincPluginHostProxy> {
     ZincPluginHostProxy(MyBot& m) : mb(m) {}
 
-    int reg_command_handler(str_t base, command_cb ptr) {
+    int register_command(str_t base, pnp::command_cb ptr) {
       // actual implementation here
       if (mb.cmd_handlers.find(base) != mb.cmd_handlers.end())
         return -1;
@@ -362,10 +389,10 @@ int main(int argc, const char** argv) {
     assert(mod != nullptr);
     assert(mod->get_plugin != nullptr);
     cout << "Loaded dynamic library: " << p.first << " ["
-         << mod->num_exported_plugins << endl;
+         << mod->num_exported_plugins << "]" << endl;
 
     for (size_t x = 0; x < mod->num_exported_plugins; ++x) {
-      PluginBase* pb = mod->get_plugin(x);
+      pnp::PluginBase* pb = mod->get_plugin(x);
       if (pb->plugin_name != nullptr && pb->plugin_name == p.second) {
         // This plugin is the one we're looking for
         assert(pb->install != nullptr);
