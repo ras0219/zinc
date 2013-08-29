@@ -16,63 +16,16 @@ extern "C" {
 #include <deque>
 #include <map>
 
+#include "boost/filesystem.hpp"
 #include "zmq.hpp"
 #include "JSON.h"
-
-template<class MessageType>
-struct ZMQService {
-  ZMQService(zmq::context_t& ctx) : socket(ctx, ZMQ_REQ) {}
-
-  template<class OutputIterator>
-  void add_to_zmq_pollfds(OutputIterator begin) {
-    short flags = ZMQ_POLLIN;
-    if (!queue.empty())
-      flags |= ZMQ_POLLOUT;
-    *begin = { socket, 0, flags, 0 };
-    ++begin;
-  }
-
-  template<class InputIterator>
-  void process_zmq_pollfds(InputIterator begin, InputIterator end) {
-    while (begin != end) {
-      if (socket != begin->socket)
-        continue;
-      if (begin->revents & ZMQ_POLLIN) {
-        zmq::message_t msg;
-        socket.recv(&msg);
-        response(queue.front(), msg);
-        queue.pop_front();
-      } else if (begin->revents & ZMQ_POLLOUT) {
-        // Should never be empty at this time
-        assert(!queue.empty());
-        zmq::message_t msg = request(queue.front());
-        socket.send(msg);
-      } else if (begin->revents & ZMQ_POLLERR) {
-        // Uhhh..... not sure what to do here halp
-        throw std::runtime_error{"Halp. ZMQ_POLLERR."};
-      }
-
-      ++begin;
-    }
-  }
-
-  void send(const MessageType& m) { queue.push_back(m); }
-  template<class ... Args>
-  void send(Args&&... args) { queue.emplace_back(args...); }
-
-  virtual zmq::message_t request(const MessageType&) = 0;
-  virtual void response(const MessageType&, zmq::message_t&) = 0;
-
-  zmq::socket_t socket;
-  std::deque<MessageType> queue;
-};
+#include "zmqservice.hpp"
+#include <zinc_plugin_host>
 
 enum megahal_cmd { LEARN, REPLY };
-
 typedef std::tuple<std::string,
                    megahal_cmd,
                    std::function< void(const std::string&) > > st_fn_pair;
-
 struct MegaHalService : ZMQService<st_fn_pair> {
   MegaHalService(zmq::context_t& ctx, const char* addr)
     : ZMQService<st_fn_pair>(ctx)
@@ -95,6 +48,27 @@ struct MegaHalService : ZMQService<st_fn_pair> {
     std::get<2>(m)(st);
   }
 };
+
+struct IRCChannelContext : ContextThunk<IRCChannelContext> {
+  IRCChannelContext(str_t channel, IRCSession& mb) : chan(channel), irc(mb) {}
+  
+  void reply(str_t msg) {
+    irc.msg(chan, msg);
+  }
+  void irc_join(str_t channel) {
+    irc.join(channel);
+  }
+  void irc_quit(str_t channel) {
+    std::cerr << "Attempted to quit channel '" << channel << "'" << std::endl;
+  }
+  void irc_message(str_t target, str_t msg) {
+    irc.msg(target, msg);
+  }
+  
+  str_t chan;
+  IRCSession& irc;
+};
+
 
 struct MyBot : public IRCSession {
   MyBot(char const* servername, unsigned int port, char const*
@@ -122,57 +96,53 @@ struct MyBot : public IRCSession {
   }
   virtual void on_part(string_t origin, string_t channel, string_t reason) { }
   virtual void on_channel(string_t origin, string_t channel, string_t m) {
-    std::cout << "MyBot Received Channel Message from:\n"
-              << "[" << channel << "] <" << origin << "> \""
-              << m << "\"\n";
+    std::cout << "[" << channel << "] <" << origin << "> \""
+              << m << "\"" << std::endl;
 
-    if (m == "-SNACKTIME" or m == "-snacktime")
-    {
-      if (snacks < 2) {
-        msg(channel, "Sorry, I don't have enough snacks.");
-        return;
-      } else {
-        snacks -= 2;
-      }
-      static const std::vector<std::string> botsnacks
-      { "&botsnack", "~jumpsnack", ".botsnack", "+botsnack",
-          "~botsnack", "^botsnack" };
-      
-      msg(channel, botsnacks[rand() % botsnacks.size()]);
-      msg(channel, botsnacks[rand() % botsnacks.size()]);
+    if (m == nullptr)
+      // Ignore empty messages
+      return;
+
+    if (m[0] == '-') {
+      // Process a command
+      const char* eoc = strchr(m, ' ');
+
+      std::string cmd;
+      if (eoc == NULL)
+        cmd = m + 1;
+      else
+        cmd = std::string(m, eoc++);
+
+      // Lowercase all commands.
+      transform(cmd.begin(), cmd.end(), cmd.begin(), tolower);
+
+      handle_command(cmd, origin, channel, eoc);
     }
-    else if (m == "-SOURCE" or m == "-source")
+    else if (strncmp(m, nick.c_str(), nick.size()) == 0
+             && m[nick.size()] == ':'
+             && m[nick.size() + 1] == ' ')
     {
-      msg(channel, "https://github.com/ras0219/zinc");
-    }
-    else if (m == "-botsnack" or m == "-BOTSNACK")
-    {
-      snacks++;
-      std::stringstream ss;
-      ss << "Thanks for the snack! I now have " << snacks << " snack";
-      if (snacks > 1) ss << "s."; else ss << ".";
-      msg(channel, ss.str());
-    } else if (m.substr(0, nick.size() + 2) == nick + ": ") {
       // I'm hilightted! I'm special! Let's give them a special treat!
-      std::string newmsg = m.substr(nick.size() + 2);
+      std::string newmsg = m + nick.size() + 2;
       std::cout << "<" << channel << "/" << origin << "> " << newmsg << "\n";
       privmsg_srv.send(newmsg, REPLY, [=](const std::string& reply) {
-          msg(channel, reply);
+          msg(channel, reply.c_str());
         });
     } else {
       // Message wasn't a command. We should remove highlights before learning...
       // On second thought that's hard.... forget about it
-      if (m.size() == 0)
-        return;
-      if (m[0] == '<') {
-        auto it = m.begin();
-        while (it != m.end() && *it != '>') ++it;
-        if (it != m.end()) ++it;
-        if (it != m.end()) ++it;
-        std::string new_msg = std::string(it, m.end());
+      if (m[0] == 0) return;
+
+      std::string st = m;
+      if (st[0] == '<') {
+        auto it = st.begin();
+        while (it != st.end() && *it != '>') ++it;
+        if (it != st.end()) ++it;
+        if (it != st.end()) ++it;
+        std::string new_msg = std::string(it, st.end());
         privmsg_srv.send(new_msg, LEARN, [=](const std::string& reply) {});
       } else {
-        privmsg_srv.send(m, LEARN, [=](const std::string& reply) {});
+        privmsg_srv.send(st, LEARN, [=](const std::string& reply) {});
       }
     }
   }
@@ -180,8 +150,11 @@ struct MyBot : public IRCSession {
     try {
       std::cout << "<" << origin << "> " << m << "\n";
 
+      if (m != nullptr and *m == '#')
+        join(m);
+
       privmsg_srv.send(m, REPLY, [=](const std::string& reply) {
-          msg(origin, reply);
+          msg(origin, reply.c_str());
         });
     } catch (std::exception& e) {
       msg(origin, e.what());
@@ -195,6 +168,49 @@ struct MyBot : public IRCSession {
       std::cout << params[n] << "\n";
     }
   }
+
+  virtual void snacktime(string_t channel) {
+    if (snacks < 2) {
+      msg(channel, "Sorry, I don't have enough snacks.");
+      return;
+    } else {
+      snacks -= 2;
+    }
+    static const std::vector<std::string> botsnacks
+    { "&botsnack", "~jumpsnack", ".botsnack", "+botsnack",
+        "~botsnack", "^botsnack" };
+      
+    msg(channel, botsnacks[rand() % botsnacks.size()].c_str());
+    msg(channel, botsnacks[rand() % botsnacks.size()].c_str());
+  }
+
+  void handle_command(const std::string& cmd, string_t origin, string_t channel, string_t rem) {
+      if (cmd == "snacktime") {
+        snacktime(channel);
+        return;
+      }
+
+      if (cmd == "source") {
+        msg(channel, "https://github.com/ras0219/zinc");
+        return;
+      }
+      if (cmd == "botsnack") {
+        snacks++;
+        std::stringstream ss;
+        ss << "Thanks for the snack! I now have " << snacks << " snack";
+        if (snacks > 1) ss << "s."; else ss << ".";
+        msg(channel, ss.str().c_str());
+        return;
+      }
+      auto it = cmd_handlers.find(cmd);
+      if (it != cmd_handlers.end()) {
+        IRCChannelContext irccc(channel, *this);
+
+        it->second(&irccc, rem);
+      }
+  }
+
+  std::map<std::string, command_cb> cmd_handlers;
 
 private:
   unsigned int snacks;
@@ -277,6 +293,8 @@ std::string get_locale_string(const std::wstring & s)
 int main(int argc, const char** argv) {
   zmq::context_t context(1);
 
+  vector< pair<string, string> > plugs_to_load;
+
   if (argc > 1) {
     wstring config = get_file_contents(argv[1]);
     JSONValue *value = JSON::Parse(config.c_str());
@@ -294,9 +312,19 @@ int main(int argc, const char** argv) {
         string_configs.insert({p.first, p.second->AsString()});
       else if (p.second->IsNumber())
         num_configs.insert({p.first, (int)round(p.second->AsNumber())});
+      else if (p.first == L"loadplugins" && p.second->IsObject()) {
+        for (auto q : p.second->AsObject())
+          if (q.second->IsString())
+            plugs_to_load.push_back(
+              { get_locale_string(q.first), get_locale_string(q.second->AsString()) });
+          else if (q.second->IsArray())
+            for (auto r : q.second->AsArray())
+              if (r->IsString())
+                plugs_to_load.push_back(
+                  { get_locale_string(q.first), get_locale_string(r->AsString()) });
+      }
   }
 
-  // LET THE DEMONS FLY! TIME TO CAST SOME CHARS!
   MegaHalService mhserv(context, get_locale_string(string_configs[L"brainsocket"]).c_str());
 
   const char* serverpass;
@@ -312,6 +340,40 @@ int main(int argc, const char** argv) {
           get_locale_string(string_configs[L"nickname"]).c_str(),
           get_locale_string(string_configs[L"realname"]).c_str(),
           mhserv);
+
+  pnp::ZincPluginHost zph;
+
+  struct ZincPluginHostProxy : PluginHostProxyThunk<ZincPluginHostProxy> {
+    ZincPluginHostProxy(MyBot& m) : mb(m) {}
+
+    int reg_command_handler(str_t base, command_cb ptr) {
+      // actual implementation here
+      if (mb.cmd_handlers.find(base) != mb.cmd_handlers.end())
+        return -1;
+      mb.cmd_handlers.insert({base, ptr});
+      return 0;
+    }
+
+    MyBot& mb;
+  } zphp(s);
+
+  for (auto p : plugs_to_load) {
+    pnp_module_t* mod = zph.load_plugin(p.first);
+    assert(mod != nullptr);
+    assert(mod->get_plugin != nullptr);
+    cout << "Loaded dynamic library: " << p.first << " ["
+         << mod->num_exported_plugins << endl;
+
+    for (size_t x = 0; x < mod->num_exported_plugins; ++x) {
+      PluginBase* pb = mod->get_plugin(x);
+      if (pb->plugin_name != nullptr && pb->plugin_name == p.second) {
+        // This plugin is the one we're looking for
+        assert(pb->install != nullptr);
+        pb->install(&zphp);
+      }
+    }
+
+  }
 
   std::vector<zmq::pollitem_t> pollfds;
 

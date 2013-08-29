@@ -48,32 +48,32 @@ void IRCSession::on_numeric(unsigned int event, char const * origin,
                             char const ** params, unsigned int count) {}
 
 // methods used by subclasses
-void IRCSession::join(const std::string &channel) {
-  if (irc_cmd_join( session, channel.c_str(), 0 ))
+void IRCSession::join(string_t channel) {
+  if (irc_cmd_join( session, channel, 0 ))
     throw std::runtime_error{"Could not join channel."};
 }
-void IRCSession::join(const std::string& channel, const std::string& password) {
-  if (irc_cmd_join( session, channel.c_str(), password.c_str()))
+void IRCSession::join(string_t channel, string_t password) {
+  if (irc_cmd_join( session, channel, password))
     throw std::runtime_error{"Could not join channel."};
 }
-void IRCSession::part(const std::string& channel) {
-  if (irc_cmd_part( session, channel.c_str()))
+void IRCSession::part(string_t channel) {
+  if (irc_cmd_part( session, channel))
     throw std::runtime_error{"Could not part channel."};
 }
-void IRCSession::msg(const std::string& target, const std::string& m) {
-  if (irc_cmd_msg( session, target.c_str(), m.c_str()))
+void IRCSession::msg(string_t target, string_t m) {
+  if (irc_cmd_msg( session, target, m))
     throw std::runtime_error{"Could not send message."};
 }
-void IRCSession::me(const std::string& target, const std::string& m) {
-  if (irc_cmd_me( session, target.c_str(), m.c_str()))
+void IRCSession::me(string_t target, string_t m) {
+  if (irc_cmd_me( session, target, m))
     throw std::runtime_error{"Could not send message."};
 }
-void IRCSession::invite(const std::string& nick, const std::string& channel) {
-  if (irc_cmd_invite( session, nick.c_str(), channel.c_str()))
+void IRCSession::invite(string_t nick, string_t channel) {
+  if (irc_cmd_invite( session, nick, channel))
     throw std::runtime_error{"Could not send invite."};
 }
-void IRCSession::names(const std::string& channel) {
-  if (irc_cmd_names( session, channel.c_str()))
+void IRCSession::names(string_t channel) {
+  if (irc_cmd_names( session, channel))
     throw std::runtime_error{"Could not get names."};
 }
 void IRCSession::disconnect() {

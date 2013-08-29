@@ -22,7 +22,7 @@ struct IRCSession {
 
   virtual ~IRCSession();
 
-  using string_t = const std::string&;
+  typedef const char* string_t; //const std::string&;
 
   // Methods to be overloaded by subclasses
   virtual void on_connect();

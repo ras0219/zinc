@@ -1,0 +1,89 @@
+#ifndef _ZINC_PLUGIN_HOST_HPP_
+#define _ZINC_PLUGIN_HOST_HPP_
+
+#include <string>
+#include <map>
+extern "C" {
+#include <dlfcn.h>
+}
+
+#include "zinc_plugin"
+
+namespace pnp {
+
+  ///////////////////////////////////////////////////////////////
+  // Wrapper for dlopen,dlsym,dlclose that throws c++ exceptions
+  using Handle = void*;
+
+  Handle open_dl(const char*, int);
+
+  void* open_sym_internal(Handle, const char*);
+  template<class F>
+  inline F open_sym(Handle h, const std::string& s) {
+    return static_cast<F>(open_sym_internal(h, s.c_str()));
+  }
+  template<class F>
+  inline F open_sym(Handle h, const char* s) {
+    return static_cast<F>(open_sym_internal(h, s));
+  }
+
+  void close_dl(Handle);
+  ///////////////////////////////////////////////////////////////
+
+  ///////////////////////////////////////////////////////////////
+  struct DynamicLib {
+    DynamicLib(const char*, int);
+    DynamicLib(const std::string&, int);
+    ~DynamicLib();
+
+    template<class F>
+    inline F open_sym(const std::string& s) {
+      F rptr;
+      * (void**)(&rptr) = open_sym_internal(hndl, s.c_str());
+      return rptr;
+    }
+    template<class F>
+    inline F open_sym(const char* s) {
+      F rptr;
+      * (void**)(&rptr) = open_sym_internal(hndl, s);
+      return rptr;
+    }
+
+  private:
+    Handle hndl;
+  };
+  ///////////////////////////////////////////////////////////////
+
+  ///////////////////////////////////////////////////////////////
+  struct ZincPluginHost {
+    ~ZincPluginHost();
+
+    template<class F>
+    F load_sym(const std::string& filename, const std::string& sym);
+    
+    DynamicLib& load_dl(const std::string& filename);
+
+    void unload_dl(const std::string& filename);
+
+    pnp_module_t* load_plugin(const std::string& filename);
+
+  private:
+    std::map<std::string, std::pair<DynamicLib*, pnp_module_t*> > mods;
+  };
+  ///////////////////////////////////////////////////////////////
+
+
+
+
+  // IMPLEMENTATION BITS
+  template<class F>
+  F ZincPluginHost::load_sym(const std::string& filename, const std::string& sym) {
+    return load_dl(filename).open_sym<F>(sym);
+  }
+}
+
+#endif
+
+// Local Variables:
+// mode: c++
+// End:

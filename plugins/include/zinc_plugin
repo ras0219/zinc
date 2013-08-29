@@ -1,0 +1,95 @@
+#ifndef _ZINC_PLUGIN_HPP_
+#define _ZINC_PLUGIN_HPP_
+
+typedef const char* str_t;
+
+namespace pnp {
+  struct SemanticVersion {
+    unsigned short major;
+    unsigned short minor;
+    unsigned short patch;
+    // Maybe a descriptor here, like a timestamp
+  };
+
+  struct ContextVTable {
+    void (*reply)(Context* ctx, str_t msg);
+    void (*irc_join)(Context* ctx, str_t channel);
+    void (*irc_msg)(Context* ctx, str_t target, str_t msg);
+  };
+  struct Context {
+    ContextVTable *vtable;
+  };
+
+  typedef void (*command_cb)(Context* ctx, str_t msg);
+
+  struct PluginHostVTable {
+    int (*register_command)(PluginHost* ctx, str_t cmd, command_cb cb);
+  };
+  struct PluginHost {
+    PluginHostVTable *vtable;
+  };
+
+  struct PluginBase {
+    // Method
+    void (*install)(PluginHost* ph);
+
+    // Attributes
+    str_t plugin_name;
+    SemanticVersion version;
+  };
+
+  // Now some templates to help ease the strain
+  template<class P>
+  struct PluginHostThunk : PluginHost {
+    PluginHostThunk() : PluginHost{&static_vtable} {}
+
+    static int rc_thunk(PluginHost* ctx, str_t arg1, command_cb arg2) {
+      static_cast<P*>(ctx)->register_command(arg, arg2);
+    }
+
+    static PluginHostVTable static_vtable;
+  };
+  template<class P>
+  PluginHostVTable PluginHostThunk<P>::static_vtable = { &PluginHostThunk<P>::rc_thunk };
+
+  template<class C>
+  struct ContextThunk : Context {
+    ContextThunk() : Context{&static_vtable} {}
+
+    static void reply_thunk(Context* ctx, str_t msg) {
+      static_cast<C*>(ctx)->reply(arg, arg2);
+    }
+    static void irc_join_thunk(Context* ctx, str_t channel) {
+      static_cast<C*>(ctx)->irc_join(arg, arg2);
+    }
+    static void irc_msg_thunk(Context* ctx, str_t target, str_t msg) {
+      static_cast<C*>(ctx)->irc_msg(arg, arg2);
+    }
+
+    static ContextVTable static_vtable;
+  };
+  template<class P>
+  ContextVTable Context<P>::static_vtable = {
+    &Context<P>::reply_thunk,
+    &Context<P>::irc_join_thunk,
+    &Context<P>::irc_msg_thunk
+  };
+
+
+
+}
+
+extern "C" {
+  struct pnp_module_t {
+    void (*init)();
+    std::size_t num_exported_plugins;
+    pnp::PluginBase* (*get_plugin)(std::size_t n);
+    void (*destroy)();
+  };
+};
+
+#endif
+
+// Local Variables:
+// mode: c++
+// End:
