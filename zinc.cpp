@@ -6,46 +6,52 @@ extern "C" {
 
 #include <cassert>
 #include <cstring>
+#include <cmath>
 /*#include <type>*/
 #include <iostream>
 #include <fstream>
 #include <iomanip>
+#include <string>
 #include <sstream>
 #include <stdexcept>
+#include <memory>
 #include <vector>
 #include <deque>
 #include <map>
+#include <set>
 
-#include "boost/filesystem.hpp"
+// #include "boost/filesystem.hpp"
 #include "zmq.hpp"
 #include "JSON.h"
 #include "zmqservice.hpp"
 #include <zinc_plugin_host>
 
 enum megahal_cmd { LEARN, REPLY };
-typedef std::tuple<std::string,
-                   megahal_cmd,
-                   std::function< void(const std::string&) > > st_fn_pair;
-struct MegaHalService : ZMQService<st_fn_pair> {
+struct MessageT {
+  std::string msg;
+  megahal_cmd cmd;
+  std::function< void(const std::string&) > cb;
+};
+
+struct MegaHalService : ZMQService<MessageT> {
   MegaHalService(zmq::context_t& ctx, const char* addr)
-    : ZMQService<st_fn_pair>(ctx)
+    : ZMQService<MessageT>(ctx)
     {
       socket.connect(addr);
     }
 
-  virtual zmq::message_t request(const st_fn_pair& m) {
-    const std::string& st = std::get<0>(m);
-    zmq::message_t msg(st.size() + 3);
-    if (std::get<1>(m) == LEARN)
+  virtual zmq::message_t request(const MessageT& m) {
+    zmq::message_t msg(m.msg.size() + 3);
+    if (m.cmd == LEARN)
       memcpy(static_cast<char*>(msg.data()), "LRN", 3);
     else
       memcpy(static_cast<char*>(msg.data()), "REP", 3);
-    memcpy(static_cast<char*>(msg.data()) + 3, st.data(), st.size());
+    memcpy(static_cast<char*>(msg.data()) + 3, m.msg.data(), m.msg.size());
     return msg;
   }
-  virtual void response(const st_fn_pair& m, zmq::message_t& msg) {
+  virtual void response(const MessageT& m, zmq::message_t& msg) {
     std::string st((const char*)msg.data(), msg.size());
-    std::get<2>(m)(st);
+    m.cb(st);
   }
 };
 
@@ -70,7 +76,7 @@ struct IRCChannelContext : pnp::ContextThunk<IRCChannelContext> {
 struct MyBot : public IRCSession {
   MyBot(char const* servername, unsigned int port, char const*
         password, const char* nick_, const char* username, const char*
-        realname, ZMQService<st_fn_pair>& srv)
+        realname, ZMQService<MessageT>& srv)
     : IRCSession{servername, port, password, nick_, username, realname},
     snacks{3},
     nick{nick_},
@@ -108,9 +114,9 @@ struct MyBot : public IRCSession {
 
       std::string cmd;
       if (eoc == NULL)
-        cmd = m + 1;
+        cmd.assign(m + 1);
       else
-        cmd = std::string(m, eoc++);
+        cmd.assign(m, eoc++);
 
       // Lowercase all commands.
       transform(cmd.begin(), cmd.end(), cmd.begin(), tolower);
@@ -126,10 +132,9 @@ struct MyBot : public IRCSession {
       std::cout << "<" << channel << "/" << origin << "> " << newmsg << std::endl;
 
       std::string channel_s = channel;
-      privmsg_srv.send(newmsg, REPLY, [=](const std::string& reply) {
-          std::cout << "Sending to <" << channel << ">: " << reply << std::endl;
-          msg(channel_s.c_str(), reply.c_str());
-        });
+      privmsg_srv.send({newmsg, REPLY, [this,channel_s](const std::string& reply) {
+            msg(channel_s.c_str(), reply.c_str());
+          }});
     } else {
       // Message wasn't a command. We should remove highlights before learning...
       // On second thought that's hard.... forget about it
@@ -142,9 +147,9 @@ struct MyBot : public IRCSession {
         if (it != st.end()) ++it;
         if (it != st.end()) ++it;
         std::string new_msg = std::string(it, st.end());
-        privmsg_srv.send(new_msg, LEARN, [=](const std::string& reply) {});
+        privmsg_srv.send({new_msg, LEARN, [](const std::string& reply) {}});
       } else {
-        privmsg_srv.send(st, LEARN, [=](const std::string& reply) {});
+        privmsg_srv.send({st, LEARN, [](const std::string& reply) {}});
       }
     }
   }
@@ -162,9 +167,9 @@ struct MyBot : public IRCSession {
 
         std::string cmd;
         if (eoc == NULL)
-          cmd = m + 1;
+          cmd.assign(m + 1);
         else
-          cmd = std::string(m + 1, eoc++);
+          cmd.assign(m + 1, eoc++);
 
         // Lowercase all commands.
         transform(cmd.begin(), cmd.end(), cmd.begin(), tolower);
@@ -179,9 +184,9 @@ struct MyBot : public IRCSession {
         handle_command(cmd, origin, origin, eoc);
       } else {
         std::string origin_s = origin;
-        privmsg_srv.send(m, REPLY, [=](const std::string& reply) {
-            msg(origin_s.c_str(), reply.c_str());
-          });
+        privmsg_srv.send({m, REPLY, [this,origin_s](const std::string& reply) {
+              msg(origin_s.c_str(), reply.c_str());
+            }});
       }
     } catch (std::exception& e) {
       msg(origin, e.what());
@@ -229,12 +234,12 @@ struct MyBot : public IRCSession {
     } else {
       snacks -= 2;
     }
-    static const std::vector<std::string> botsnacks
-    { "&botsnack", "~jumpsnack", ".botsnack", "+botsnack",
+    static std::vector<const char*> botsnacks =
+      { "&botsnack", "~jumpsnack", ".botsnack", "+botsnack",
         "~botsnack", "^botsnack" };
       
-    msg(channel, botsnacks[rand() % botsnacks.size()].c_str());
-    msg(channel, botsnacks[rand() % botsnacks.size()].c_str());
+    msg(channel, botsnacks[rand() % botsnacks.size()]);
+    msg(channel, botsnacks[rand() % botsnacks.size()]);
   }
 
   std::map<std::string, pnp::command_cb> cmd_handlers;
@@ -242,7 +247,7 @@ struct MyBot : public IRCSession {
 private:
   unsigned int snacks;
   std::string nick;
-  ZMQService<st_fn_pair>& privmsg_srv;
+  ZMQService<MessageT>& privmsg_srv;
 };
 
 struct zmq_pollitem_adapter {
@@ -325,15 +330,15 @@ struct Configuration {
         num_configs.insert({p.first, (int)round(p.second->AsNumber())});
       else if (p.first == L"loadplugins" && p.second->IsObject()) {
         for (auto q : p.second->AsObject()) {
-          libraries_to_load.push_back( get_locale_string(q.first) );
+          libraries_to_load.insert(get_locale_string(q.first));
           if (q.second->IsString())
-            plugs_to_load.push_back(
-              { get_locale_string(q.first), get_locale_string(q.second->AsString()) });
+            plugs_to_load.emplace(get_locale_string(q.first),
+                                  get_locale_string(q.second->AsString()));
           else if (q.second->IsArray())
             for (auto r : q.second->AsArray())
               if (r->IsString())
-                plugs_to_load.push_back(
-                  { get_locale_string(q.first), get_locale_string(r->AsString()) });
+                plugs_to_load.emplace(get_locale_string(q.first),
+                                      get_locale_string(r->AsString()));
         }
       }
   }
@@ -348,9 +353,9 @@ struct Configuration {
   map<wstring, wstring> string_configs;
   map<wstring, int> num_configs;
 
-  vector< string > libraries_to_load;
-  vector< pair<string, string> > plugs_to_load;
-} global_config = {
+  set< string > libraries_to_load;
+  set< pair<string, string> > plugs_to_load;
+} global_config{
   {
     {L"brainsocket", L"tcp://localhost:5555"},
     {L"serveraddr", L"irc.freenode.net"},
@@ -361,8 +366,10 @@ struct Configuration {
   },
   {
     {L"serverport", 6667}
-  }
-};
+  },
+  {},
+  {}
+  };
 
 
 int main(int argc, const char** argv) {
@@ -392,18 +399,74 @@ int main(int argc, const char** argv) {
   pnp::ZincPluginHost zph;
 
   struct ZincPluginHostProxy : pnp::PluginHostThunk<ZincPluginHostProxy> {
-    ZincPluginHostProxy(MyBot& m) : mb(m) {}
+    ZincPluginHostProxy(MyBot& m, pnp::ZincPluginHost& z) : mb(m), zph(z) {}
 
-    int register_command(str_t base, pnp::command_cb ptr) {
+    int register_command(str_t cmd, pnp::command_cb ptr) {
       // actual implementation here
-      if (mb.cmd_handlers.find(base) != mb.cmd_handlers.end())
+      if (mb.cmd_handlers.find(cmd) != mb.cmd_handlers.end())
         return -1;
-      mb.cmd_handlers.insert({base, ptr});
+      mb.cmd_handlers.insert({cmd, ptr});
       return 0;
     }
 
+    int unregister_command(str_t cmd) {
+      auto it = mb.cmd_handlers.find(cmd);
+      if (it == mb.cmd_handlers.end())
+        return -1;
+
+      mb.cmd_handlers.erase(it);
+      return 0;
+    }
+
+    size_t num_libraries() { return zph.num_libraries(); }
+    size_t list_libraries(size_t n, const pnp::LibraryInstance** libs) {
+      size_t z = min(n, zph.num_libraries());
+      auto it = zph.libraries_begin();
+      for (size_t x = 0; x < z; ++x) {
+        libs[x] = it->second;
+        ++it;
+      }
+      return z;
+    }
+    str_t get_library_name(const pnp::LibraryInstance* lib) {
+      return lib->filename.c_str();
+    }
+
+    size_t num_loaded_plugins() { return zph.num_plugins(); }
+    size_t list_loaded_plugins(size_t n, const pnp::PluginInstance** plugs) {
+      size_t z = min(n, zph.num_plugins());
+      auto it = zph.plugins_begin();
+      for (size_t x = 0; x < z; ++x) {
+        plugs[x] = it->second;
+        ++it;
+      }
+      return z;
+    }
+    const pnp::PluginBase* get_loaded_plugin_base(const pnp::PluginInstance* plug) {
+      return plug;
+    }
+
+    size_t num_provided_plugins(const pnp::LibraryInstance* lib) {
+      return lib->module_info->num_exported_plugins;
+    }
+    size_t list_provided_plugins(const pnp::LibraryInstance* lib,
+                                 size_t n,
+                                 const pnp::PluginBase** plugs) {
+      assert(false);
+      return 0;
+    }
+
+    void irc_join(str_t channel) {
+      mb.join(channel);
+    }
+
+    void irc_msg(str_t target, str_t msg) {
+      mb.msg(target, msg);
+    }
+
     MyBot& mb;
-  } zphp(s);
+    pnp::ZincPluginHost& zph;
+  } zphp(s, zph);
 
   for (auto f : global_config.libraries_to_load) {
     cout << "loading <" << f << ">" << endl;

@@ -39,8 +39,8 @@ struct ZMQService {
   }
 
   void send(const MessageType& m) { queue.push_back(m); }
-  template<class ... Args>
-  void send(Args&&... args) { queue.emplace_back(args...); }
+  // template<class ... Args>
+  // void send(Args&&... args) { queue.emplace_back(args...); }
 
   virtual zmq::message_t request(const MessageType&) = 0;
   virtual void response(const MessageType&, zmq::message_t&) = 0;

@@ -79,7 +79,7 @@ namespace pnp {
     }
     auto libptr = new LibraryInstance(filename);
     assert(libptr);
-    auto lib = unique_ptr<LibraryInstance>{libptr};
+    auto lib = std::unique_ptr<LibraryInstance>{libptr};
     filename_to_linst.insert({filename, lib.get()});
     lib.release();
   }

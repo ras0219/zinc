@@ -1,0 +1,53 @@
+#ifndef _THUNK_MAGIC_HPP_
+#define _THUNK_MAGIC_HPP_
+
+template<class T>
+struct thunk_mpty;
+template<class R, class P, class ... Args>
+struct thunk_mpty<R (P::*)(Args...)> {
+  typedef P Base;
+  template<R (P::*memptr)(Args...)>
+  struct thunk_mp {
+    template<class P2>
+    static R func(P2* p, Args... args) {
+      return (static_cast<P*>(p)->*memptr)(args...);
+    }
+  };
+};
+
+template<class Base, class DeriveMP, DeriveMP f>
+struct make_thunk2 {
+  typedef decltype(&thunk_mpty<DeriveMP>::template
+                   thunk_mp<f>::template
+                   func<Base>) thunk_type;
+
+  static thunk_type func;
+};
+template<class Base, class DeriveMP, DeriveMP f>
+typename make_thunk2<Base,DeriveMP,f>::thunk_type make_thunk2<Base,DeriveMP,f>::func =
+  &thunk_mpty<DeriveMP>::template thunk_mp<f>::template func<Base>;
+
+
+// For not swapping the base type
+template<class DeriveMP, DeriveMP f>
+struct make_thunk {
+  typedef typename thunk_mpty<DeriveMP>::Base Base;
+  typedef decltype(&thunk_mpty<DeriveMP>::template
+                   thunk_mp<f>::template
+                   func<Base>) thunk_type;
+
+  static thunk_type func;
+};
+template<class DeriveMP, DeriveMP f>
+typename make_thunk<DeriveMP,f>::thunk_type make_thunk<DeriveMP,f>::func =
+  &thunk_mpty<DeriveMP>::template
+  thunk_mp<f>::template
+  func<typename make_thunk<DeriveMP,f>::Base>;
+
+#define DDECLTYPE(A) decltype(A), A
+
+#endif
+
+// Local Variables:
+// mode: c++
+// End:

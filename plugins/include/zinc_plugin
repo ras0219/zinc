@@ -2,6 +2,9 @@
 #define _ZINC_PLUGIN_HPP_
 
 #include <cstddef>
+#include <iostream>
+#include <sstream>
+#include "thunk_magic"
 
 typedef const char* str_t;
 
@@ -13,6 +16,13 @@ namespace pnp {
     // TODO: Prerelease field
     // TODO: Build metadata field
   };
+
+  inline std::ostream& operator<<(std::ostream& os, SemanticVersion sv) {
+    std::stringstream ss;
+    ss << sv.major << "." << sv.minor << "." << sv.patch;
+    os << ss.str();
+    return os;
+  }
 
   inline bool operator==(SemanticVersion sv1, SemanticVersion sv2) {
     return sv1.major == sv2.major
@@ -34,8 +44,6 @@ namespace pnp {
   struct Context;
   struct ContextVTable {
     void (*reply)(Context* ctx, str_t msg);
-    void (*irc_join)(Context* ctx, str_t channel);
-    void (*irc_msg)(Context* ctx, str_t target, str_t msg);
   };
   struct Context {
     ContextVTable *vtable;
@@ -44,19 +52,39 @@ namespace pnp {
   typedef void (*command_cb)(Context* ctx, str_t msg);
 
   // Library type
-  struct library_info_t;
+  struct LibraryInstance;
   // Plugin type
   struct PluginBase;
+  typedef PluginBase PluginInstance;
 
   struct PluginHost;
   struct PluginHostVTable {
     int (*register_command)(PluginHost* ctx, str_t cmd, command_cb cb);
-    int (*unregister_command)(PluginHost* ctx, str_t cmd, command_cb cb);
+    int (*unregister_command)(PluginHost* ctx, str_t cmd);
+
+    // Commands involving libraries
+    std::size_t (*num_libraries)(PluginHost* ctx);
+    std::size_t (*list_libraries)(PluginHost* ctx,
+                                  std::size_t n,
+                                  const LibraryInstance** libs);
+    str_t (*get_library_name)(PluginHost* ctx, const LibraryInstance* lib);
 
     // Commands involving plugins
-    // std::size_t (*num_libraries)(PluginHost* ctx);
-    // library_info_t* (*get_library)(PluginHost* ctx, std::size_t n);
-    // library_info_t* (*get_library)(PluginHost* ctx, std::size_t n);
+    std::size_t (*num_loaded_plugins)(PluginHost* ctx);
+    std::size_t (*list_loaded_plugins)(PluginHost* ctx,
+                                       std::size_t n,
+                                       const PluginInstance** plugs);
+    const PluginBase* (*get_loaded_plugin_base)(PluginHost* ctx, const PluginInstance* plug);
+
+    std::size_t (*num_provided_plugins)(PluginHost* ctx, const LibraryInstance* lib);
+    std::size_t (*list_provided_plugins)(PluginHost* ctx,
+                                         const LibraryInstance* lib,
+                                         std::size_t n,
+                                         const PluginBase** plugs);
+
+    // Commands involving irc
+    void (*irc_join)(PluginHost* ctx, str_t channel);
+    void (*irc_msg)(PluginHost* ctx, str_t target, str_t msg);
   };
   struct PluginHost {
     PluginHostVTable *vtable;
@@ -65,7 +93,7 @@ namespace pnp {
   struct PluginBase {
     // Method
     void (*install)(PluginHost* ph);
-    void (*uninstall)(PluginHost* ph);
+    void (*uninstall)();
     // If transfer succeeds, previous plugin should be completely uninstalled
     // If transfer fails, previous plugin should be undisturbed
     int (*transfer)(PluginBase* prev_version);
@@ -80,40 +108,37 @@ namespace pnp {
   struct PluginHostThunk : PluginHost {
     PluginHostThunk() : PluginHost{&static_vtable} {}
 
-    static int rc_thunk(PluginHost* ctx, str_t arg1, command_cb arg2) {
-      return static_cast<P*>(ctx)->register_command(arg1, arg2);
-    }
-
     static PluginHostVTable static_vtable;
   };
   template<class P>
-  PluginHostVTable PluginHostThunk<P>::static_vtable = { &PluginHostThunk<P>::rc_thunk };
+  PluginHostVTable PluginHostThunk<P>::static_vtable = {
+    make_thunk2<PluginHost, DDECLTYPE(&P::register_command)>::func,
+    make_thunk2<PluginHost, DDECLTYPE(&P::unregister_command)>::func,
+    make_thunk2<PluginHost, DDECLTYPE(&P::num_libraries)>::func,
+    make_thunk2<PluginHost, DDECLTYPE(&P::list_libraries)>::func,
+    make_thunk2<PluginHost, DDECLTYPE(&P::get_library_name)>::func,
+    make_thunk2<PluginHost, DDECLTYPE(&P::num_loaded_plugins)>::func,
+    make_thunk2<PluginHost, DDECLTYPE(&P::list_loaded_plugins)>::func,
+    make_thunk2<PluginHost, DDECLTYPE(&P::get_loaded_plugin_base)>::func,
+    make_thunk2<PluginHost, DDECLTYPE(&P::num_provided_plugins)>::func,
+    make_thunk2<PluginHost, DDECLTYPE(&P::list_provided_plugins)>::func,
+    make_thunk2<PluginHost, DDECLTYPE(&P::irc_join)>::func,
+    make_thunk2<PluginHost, DDECLTYPE(&P::irc_msg)>::func
+  };
 
   template<class C>
   struct ContextThunk : Context {
     ContextThunk() : Context{&static_vtable} {}
 
-    static void reply_thunk(Context* ctx, str_t arg1) {
-      static_cast<C*>(ctx)->reply(arg1);
-    }
-    static void irc_join_thunk(Context* ctx, str_t arg1) {
-      static_cast<C*>(ctx)->irc_join(arg1);
-    }
-    static void irc_msg_thunk(Context* ctx, str_t arg1, str_t arg2) {
-      static_cast<C*>(ctx)->irc_msg(arg1, arg2);
-    }
-
     static ContextVTable static_vtable;
   };
   template<class P>
   ContextVTable ContextThunk<P>::static_vtable = {
-    &ContextThunk<P>::reply_thunk,
-    &ContextThunk<P>::irc_join_thunk,
-    &ContextThunk<P>::irc_msg_thunk
+    make_thunk2<Context, DDECLTYPE(&P::reply)>::func
   };
 
 }
-#define CUR_ZINC_VERSION pnp::SemanticVersion{0,0,0}
+#define CUR_ZINC_VERSION pnp::SemanticVersion{0,0,2}
 
 extern "C" {
   struct pnp_module_t {
