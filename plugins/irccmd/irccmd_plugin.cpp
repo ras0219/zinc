@@ -24,6 +24,8 @@ namespace IrcCmdPlugin
 
   static PluginBase plugbase = {
     &install,
+    nullptr, // uninstall
+    nullptr, // transfer
     plugin_name,
     plugin_version
   };
@@ -36,8 +38,10 @@ PluginBase* get_plugin(std::size_t n) {
 
 pnp_module_t pnp_module =
 {
+  CUR_ZINC_VERSION,             // req_zinc_version
   nullptr,                      // init
+  nullptr,                      // destroy
+
   1,                            // num_exported_plugins
-  get_plugin,                   // get_plugin
-  nullptr                       // destroy
+  get_plugin                    // get_plugin
 };

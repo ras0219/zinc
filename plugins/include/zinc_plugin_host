@@ -55,31 +55,62 @@ namespace pnp {
   ///////////////////////////////////////////////////////////////
 
   ///////////////////////////////////////////////////////////////
-  struct ZincPluginHost {
-    ~ZincPluginHost();
+  struct LibraryInstance {
+    // typedef std::shared_ptr< LibraryInstance > sptr;
+    // typedef std::shared_ptr< const LibraryInstance > const_sptr;
+    typedef LibraryInstance* sptr;
+    typedef const LibraryInstance* const_sptr;
 
-    template<class F>
-    F load_sym(const std::string& filename, const std::string& sym);
-    
-    DynamicLib& load_dl(const std::string& filename);
+    LibraryInstance(const std::string& fname);
+    ~LibraryInstance();
 
-    void unload_dl(const std::string& filename);
+    DynamicLib hndl;
 
-    pnp_module_t* load_plugin(const std::string& filename);
+    std::string filename;
 
-  private:
-    std::map<std::string, std::pair<DynamicLib*, pnp_module_t*> > mods;
+    pnp_module_t* module_info;
   };
   ///////////////////////////////////////////////////////////////
 
+  ///////////////////////////////////////////////////////////////
+  struct ZincPluginHost {
+  private:
+    typedef std::map<std::string, LibraryInstance::sptr> s_to_linst_map_t;
+    typedef std::multimap<LibraryInstance::sptr, PluginBase*> linst_to_plugin_map_t;
+    typedef s_to_linst_map_t::iterator lib_iterator;
+    typedef linst_to_plugin_map_t::iterator plugin_iterator;
+  public:
+    ~ZincPluginHost();
 
+    void add_library_file(const std::string& filename);
+    // TODO: these guys
+    //void reload_library_file(const std::string& filename);
+    //void unload_library_file(const std::string& filename);
 
+    //void reload_library(LibraryInstance::sptr lib);
+    //void unload_library(LibraryInstance::sptr lib);
 
-  // IMPLEMENTATION BITS
-  template<class F>
-  F ZincPluginHost::load_sym(const std::string& filename, const std::string& sym) {
-    return load_dl(filename).open_sym<F>(sym);
-  }
+    std::size_t num_libraries();
+    lib_iterator libraries_begin();
+    lib_iterator libraries_end();
+
+    std::size_t num_plugins();
+    plugin_iterator plugins_begin();
+    plugin_iterator plugins_end();
+
+    std::size_t num_plugins(LibraryInstance::sptr lib);
+    plugin_iterator plugins_begin(LibraryInstance::sptr lib);
+    plugin_iterator plugins_end(LibraryInstance::sptr lib);
+
+    PluginBase* load_plugin(const std::string& filename,
+                            const std::string& plugin_name,
+                            PluginHost* ph);
+
+  private:
+    s_to_linst_map_t filename_to_linst;
+    linst_to_plugin_map_t linst_to_plugins;
+  };
+  ///////////////////////////////////////////////////////////////
 }
 
 #endif

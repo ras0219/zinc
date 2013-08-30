@@ -10,8 +10,26 @@ namespace pnp {
     unsigned short major;
     unsigned short minor;
     unsigned short patch;
-    // Maybe a descriptor here, like a timestamp
+    // TODO: Prerelease field
+    // TODO: Build metadata field
   };
+
+  inline bool operator==(SemanticVersion sv1, SemanticVersion sv2) {
+    return sv1.major == sv2.major
+      && sv1.minor == sv2.minor
+      && sv1.patch == sv2.patch;
+  }
+  inline bool operator!=(SemanticVersion sv1, SemanticVersion sv2) {
+    return !(sv1 == sv2);
+  }
+
+  inline bool compatible(SemanticVersion library, SemanticVersion required) {
+    if (library == required) return true;
+    if (library.major == 0) return false;
+    if (library.major != required.major) return false;
+    if (library.minor < required.minor) return false;
+    return true;
+  }
 
   struct Context;
   struct ContextVTable {
@@ -25,9 +43,20 @@ namespace pnp {
 
   typedef void (*command_cb)(Context* ctx, str_t msg);
 
+  // Library type
+  struct library_info_t;
+  // Plugin type
+  struct PluginBase;
+
   struct PluginHost;
   struct PluginHostVTable {
     int (*register_command)(PluginHost* ctx, str_t cmd, command_cb cb);
+    int (*unregister_command)(PluginHost* ctx, str_t cmd, command_cb cb);
+
+    // Commands involving plugins
+    // std::size_t (*num_libraries)(PluginHost* ctx);
+    // library_info_t* (*get_library)(PluginHost* ctx, std::size_t n);
+    // library_info_t* (*get_library)(PluginHost* ctx, std::size_t n);
   };
   struct PluginHost {
     PluginHostVTable *vtable;
@@ -36,6 +65,10 @@ namespace pnp {
   struct PluginBase {
     // Method
     void (*install)(PluginHost* ph);
+    void (*uninstall)(PluginHost* ph);
+    // If transfer succeeds, previous plugin should be completely uninstalled
+    // If transfer fails, previous plugin should be undisturbed
+    int (*transfer)(PluginBase* prev_version);
 
     // Attributes
     str_t plugin_name;
@@ -79,16 +112,18 @@ namespace pnp {
     &ContextThunk<P>::irc_msg_thunk
   };
 
-
-
 }
+#define CUR_ZINC_VERSION pnp::SemanticVersion{0,0,0}
 
 extern "C" {
   struct pnp_module_t {
+    pnp::SemanticVersion req_zinc_version;
+
     void (*init)();
+    void (*destroy)();
+
     std::size_t num_exported_plugins;
     pnp::PluginBase* (*get_plugin)(std::size_t n);
-    void (*destroy)();
   };
 };
 

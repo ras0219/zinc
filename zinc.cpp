@@ -273,18 +273,6 @@ wstring get_file_contents(const char *filename)
   throw(errno);
 }
 
-map<wstring, wstring> string_configs = {
-  {L"brainsocket", L"tcp://localhost:5555"},
-  {L"serveraddr", L"irc.freenode.net"},
-  {L"serverpass", L""},
-  {L"username", L"rasalghul"},
-  {L"nickname", L"rasalghul"},
-  {L"realname", L"Ra's al Ghul"}
-};
-map<wstring, int> num_configs = {
-  {L"serverport", 6667}
-};
-
 // Dummy
 std::string get_locale_string(const std::string & s)
 {
@@ -317,13 +305,9 @@ std::string get_locale_string(const std::wstring & s)
   return std::string(buf.data(), wn);
 }
 
-int main(int argc, const char** argv) {
-  zmq::context_t context(1);
-
-  vector< pair<string, string> > plugs_to_load;
-
-  if (argc > 1) {
-    wstring config = get_file_contents(argv[1]);
+struct Configuration {
+  void parse_file(const char* filename) {
+    wstring config = get_file_contents(filename);
     JSONValue *value = JSON::Parse(config.c_str());
 
     if (value == nullptr)
@@ -340,7 +324,8 @@ int main(int argc, const char** argv) {
       else if (p.second->IsNumber())
         num_configs.insert({p.first, (int)round(p.second->AsNumber())});
       else if (p.first == L"loadplugins" && p.second->IsObject()) {
-        for (auto q : p.second->AsObject())
+        for (auto q : p.second->AsObject()) {
+          libraries_to_load.push_back( get_locale_string(q.first) );
           if (q.second->IsString())
             plugs_to_load.push_back(
               { get_locale_string(q.first), get_locale_string(q.second->AsString()) });
@@ -349,23 +334,59 @@ int main(int argc, const char** argv) {
               if (r->IsString())
                 plugs_to_load.push_back(
                   { get_locale_string(q.first), get_locale_string(r->AsString()) });
+        }
       }
   }
 
-  MegaHalService mhserv(context, get_locale_string(string_configs[L"brainsocket"]).c_str());
+  inline string get_string_config(const wstring& key) {
+    return get_locale_string(string_configs[key]);
+  }
+  inline int get_num_config(const wstring& key) {
+    return num_configs[key];
+  }
 
-  const char* serverpass;
-  if (string_configs[L"serverpass"].empty())
-    serverpass = NULL;
-  else
-    serverpass = get_locale_string(string_configs[L"serverpass"]).c_str();
+  map<wstring, wstring> string_configs;
+  map<wstring, int> num_configs;
 
-  MyBot s(get_locale_string(string_configs[L"serveraddr"]).c_str(),
-          num_configs[L"serverport"],
-          serverpass,
-          get_locale_string(string_configs[L"username"]).c_str(),
-          get_locale_string(string_configs[L"nickname"]).c_str(),
-          get_locale_string(string_configs[L"realname"]).c_str(),
+  vector< string > libraries_to_load;
+  vector< pair<string, string> > plugs_to_load;
+} global_config = {
+  {
+    {L"brainsocket", L"tcp://localhost:5555"},
+    {L"serveraddr", L"irc.freenode.net"},
+    {L"serverpass", L""},
+    {L"username", L"rasalghul"},
+    {L"nickname", L"rasalghul"},
+    {L"realname", L"Ra's al Ghul"}
+  },
+  {
+    {L"serverport", 6667}
+  }
+};
+
+
+int main(int argc, const char** argv) {
+  zmq::context_t context(1);
+
+  if (argc > 1)
+    global_config.parse_file(argv[1]);
+
+  MegaHalService mhserv(context, global_config.get_string_config(L"brainsocket").c_str());
+
+  string
+    serverpass = global_config.get_string_config(L"serverpass"),
+    serveraddr = global_config.get_string_config(L"serveraddr"),
+    username = global_config.get_string_config(L"username"),
+    nickname = global_config.get_string_config(L"nickname"),
+    realname = global_config.get_string_config(L"realname");
+  int port = global_config.get_num_config(L"serverport");
+
+  MyBot s(serveraddr.c_str(),
+          port,
+          serverpass.empty() ? NULL : serverpass.c_str(),
+          username.c_str(),
+          nickname.c_str(),
+          realname.c_str(),
           mhserv);
 
   pnp::ZincPluginHost zph;
@@ -384,22 +405,13 @@ int main(int argc, const char** argv) {
     MyBot& mb;
   } zphp(s);
 
-  for (auto p : plugs_to_load) {
-    pnp_module_t* mod = zph.load_plugin(p.first);
-    assert(mod != nullptr);
-    assert(mod->get_plugin != nullptr);
-    cout << "Loaded dynamic library: " << p.first << " ["
-         << mod->num_exported_plugins << "]" << endl;
+  for (auto f : global_config.libraries_to_load) {
+    cout << "loading <" << f << ">" << endl;
+    zph.add_library_file(f);
+  }
 
-    for (size_t x = 0; x < mod->num_exported_plugins; ++x) {
-      pnp::PluginBase* pb = mod->get_plugin(x);
-      if (pb->plugin_name != nullptr && pb->plugin_name == p.second) {
-        // This plugin is the one we're looking for
-        assert(pb->install != nullptr);
-        pb->install(&zphp);
-      }
-    }
-
+  for (auto p : global_config.plugs_to_load) {
+    assert(zph.load_plugin(p.first, p.second, &zphp));
   }
 
   std::vector<zmq::pollitem_t> pollfds;
