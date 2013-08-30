@@ -24,6 +24,7 @@ add_subdirectory(plugins)
 
 add_executable(zinc zinc.cpp ircpp.cpp plugins/zinc_plugin_host.cpp)
 target_link_libraries(zinc
+	              ${CMAKE_DL_LIBS}
                       ${CMAKE_CURRENT_SOURCE_DIR}/lib/libircclient-1.7/src/libircclient.a
                       json
                       ${Boost_FILESYSTEM_LIBRARIES}
@@ -31,5 +32,5 @@ target_link_libraries(zinc
                       ${ZMQ_LIBRARIES})
 
 
-add_executable(megabrain megabrain/megabrain.cpp megabrain/megahal-9.1.1/megahal.c)
-target_link_libraries(megabrain ${ZMQ_LIBRARIES})
+add_executable(megabrain_bin megabrain/megabrain.cpp megabrain/megahal-9.1.1/megahal.c)
+target_link_libraries(megabrain_bin ${ZMQ_LIBRARIES})
