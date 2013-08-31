@@ -81,7 +81,6 @@ struct MyBot : public IRCSession {
         password, const char* nick_, const char* username, const char*
         realname, ZMQService<MessageT>& srv)
     : IRCSession{servername, port, password, nick_, username, realname},
-    snacks{3},
     nick{nick_},
     privmsg_srv(srv)
     { }
@@ -211,22 +210,10 @@ struct MyBot : public IRCSession {
     }
   }
 
-  void handle_command(const std::string& cmd, string_t origin, string_t channel, string_t rem) {
-    if (cmd == "snacktime") {
-      snacktime(channel);
-      return;
-    }
-
+  void handle_command(const std::string& cmd, string_t origin,
+                      string_t channel, string_t rem) {
     if (cmd == "source") {
       msg(channel, "https://github.com/ras0219/zinc");
-      return;
-    }
-    if (cmd == "botsnack") {
-      snacks++;
-      std::stringstream ss;
-      ss << "Thanks for the snack! I now have " << snacks << " snack";
-      if (snacks > 1) ss << "s."; else ss << ".";
-      msg(channel, ss.str().c_str());
       return;
     }
     auto it = cmd_handlers.find(cmd);
@@ -237,26 +224,10 @@ struct MyBot : public IRCSession {
     }
   }
 
-  void snacktime(string_t channel) {
-    if (snacks < 2) {
-      msg(channel, "Sorry, I don't have enough snacks.");
-      return;
-    } else {
-      snacks -= 2;
-    }
-    static std::vector<const char*> botsnacks =
-      { "&botsnack", "~jumpsnack", ".botsnack", "+botsnack",
-        "~botsnack", "^botsnack" };
-      
-    msg(channel, botsnacks[rand() % botsnacks.size()]);
-    msg(channel, botsnacks[rand() % botsnacks.size()]);
-  }
-
   std::map<std::string, pnp::command_cb> cmd_handlers;
   std::vector<pnp::fallback_cb> fallback_handlers;
 
 private:
-  unsigned int snacks;
   std::string nick;
   ZMQService<MessageT>& privmsg_srv;
 };
@@ -371,9 +342,9 @@ struct Configuration {
     {L"brainsocket", L"tcp://localhost:5555"},
     {L"serveraddr", L"irc.freenode.net"},
     {L"serverpass", L""},
-    {L"username", L"rasalghul"},
-    {L"nickname", L"rasalghul"},
-    {L"realname", L"Ra's al Ghul"}
+    {L"username", L"cxxtestbot"},
+    {L"nickname", L"cxxtestbot"},
+    {L"realname", L"C++11 Test Bot"}
   },
   {
     {L"serverport", 6667}
@@ -386,8 +357,16 @@ struct Configuration {
 int main(int argc, const char** argv) {
   zmq::context_t context(1);
 
-  if (argc > 1)
+  if (argc > 1) {
     global_config.parse_file(argv[1]);
+  } else {
+    std::cout << "Warning! You have chosen to run zinc without any config file!\n"
+              << "This means no plugins will be loaded "
+              << "and we'll have next to no functionality! :(\n"
+              << "\n"
+              << "Please create a configuration json file and relaunch as\n"
+              << "    " << argv[0] << " <configfile>\n" << std::endl;
+  }
 
   MegaHalService mhserv(context, global_config.get_string_config(L"brainsocket").c_str());
 
