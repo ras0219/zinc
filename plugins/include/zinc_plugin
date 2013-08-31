@@ -44,12 +44,24 @@ namespace pnp {
   struct Context;
   struct ContextVTable {
     void (*reply)(Context* ctx, str_t msg);
+    // Add context questions
+    bool (*is_irc)(Context* ctx);
+    bool (*is_local)(Context* ctx);
+    bool (*is_other)(Context* ctx);
+
+    // If is_irc returned true, then
+    str_t (*irc_req_user)(Context* ctx);
+    str_t (*irc_req_channel)(Context* ctx);
   };
   struct Context {
     ContextVTable *vtable;
   };
 
   typedef void (*command_cb)(Context* ctx, str_t msg);
+
+  // Return false to indicate that the message was handled.
+  // Return true to indicate that the message should be passed onto the next handler.
+  typedef bool (*fallback_cb)(Context* ctx, str_t msg);
 
   // Library type
   struct LibraryInstance;
@@ -61,6 +73,10 @@ namespace pnp {
   struct PluginHostVTable {
     int (*register_command)(PluginHost* ctx, str_t cmd, command_cb cb);
     int (*unregister_command)(PluginHost* ctx, str_t cmd);
+
+    // Invalid to call from within a fallback handler
+    int (*register_fallback)(PluginHost* ctx, fallback_cb cb);
+    int (*unregister_fallback)(PluginHost* ctx, fallback_cb cb);
 
     // Commands involving libraries
     std::size_t (*num_libraries)(PluginHost* ctx);
@@ -114,6 +130,10 @@ namespace pnp {
   PluginHostVTable PluginHostThunk<P>::static_vtable = {
     make_thunk2<PluginHost, DDECLTYPE(&P::register_command)>::func,
     make_thunk2<PluginHost, DDECLTYPE(&P::unregister_command)>::func,
+
+    make_thunk2<PluginHost, DDECLTYPE(&P::register_fallback)>::func,
+    make_thunk2<PluginHost, DDECLTYPE(&P::unregister_fallback)>::func,
+
     make_thunk2<PluginHost, DDECLTYPE(&P::num_libraries)>::func,
     make_thunk2<PluginHost, DDECLTYPE(&P::list_libraries)>::func,
     make_thunk2<PluginHost, DDECLTYPE(&P::get_library_name)>::func,
@@ -134,11 +154,16 @@ namespace pnp {
   };
   template<class P>
   ContextVTable ContextThunk<P>::static_vtable = {
-    make_thunk2<Context, DDECLTYPE(&P::reply)>::func
+    make_thunk2<Context, DDECLTYPE(&P::reply)>::func,
+    make_thunk2<Context, DDECLTYPE(&P::is_irc)>::func,
+    make_thunk2<Context, DDECLTYPE(&P::is_local)>::func,
+    make_thunk2<Context, DDECLTYPE(&P::is_other)>::func,
+    make_thunk2<Context, DDECLTYPE(&P::irc_req_user)>::func,
+    make_thunk2<Context, DDECLTYPE(&P::irc_req_channel)>::func
   };
 
 }
-#define CUR_ZINC_VERSION pnp::SemanticVersion{0,0,2}
+#define CUR_ZINC_VERSION pnp::SemanticVersion{0,1,0}
 
 extern "C" {
   struct pnp_module_t {

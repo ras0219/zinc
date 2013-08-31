@@ -14,6 +14,7 @@ extern "C" {
 #include <string>
 #include <sstream>
 #include <stdexcept>
+#include <algorithm>
 #include <memory>
 #include <vector>
 #include <deque>
@@ -56,18 +57,20 @@ struct MegaHalService : ZMQService<MessageT> {
 };
 
 struct IRCChannelContext : pnp::ContextThunk<IRCChannelContext> {
-  IRCChannelContext(str_t channel, IRCSession& mb) : chan(channel), irc(mb) {}
+  IRCChannelContext(str_t channel, str_t user, IRCSession& mb)
+    : usr(user), chan(channel), irc(mb) {}
   
   void reply(str_t msg) {
     irc.msg(chan, msg);
   }
-  void irc_join(str_t channel) {
-    irc.join(channel);
-  }
-  void irc_msg(str_t target, str_t msg) {
-    irc.msg(target, msg);
-  }
-  
+  bool is_irc() { return true; }
+  bool is_local() { return false; }
+  bool is_other() { return false; }
+
+  str_t irc_req_user() { return usr; }
+  str_t irc_req_channel() { return chan; }
+
+  str_t usr;
   str_t chan;
   IRCSession& irc;
 };
@@ -104,7 +107,7 @@ struct MyBot : public IRCSession {
     std::cout << "[" << channel << "] <" << origin << "> \""
               << m << "\"" << std::endl;
 
-    if (m == nullptr)
+    if (m == nullptr || m[0] == 0)
       // Ignore empty messages
       return;
 
@@ -136,10 +139,16 @@ struct MyBot : public IRCSession {
             msg(channel_s.c_str(), reply.c_str());
           }});
     } else {
+      IRCChannelContext irccc(channel, origin, *this);
+      auto it = fallback_handlers.rbegin();
+      while (it != fallback_handlers.rend()) {
+        if (!(*it)(&irccc, m))
+          return;
+        ++it;
+      }
+
       // Message wasn't a command. We should remove highlights before learning...
       // On second thought that's hard.... forget about it
-      if (m[0] == 0) return;
-
       std::string st = m;
       if (st[0] == '<') {
         auto it = st.begin();
@@ -157,7 +166,7 @@ struct MyBot : public IRCSession {
     try {
       std::cout << "<" << origin << "> " << m << "\n";
 
-      if (m == nullptr)
+      if (m == nullptr || m[0] == 0)
         // Ignore empty messages
         return;
 
@@ -174,15 +183,16 @@ struct MyBot : public IRCSession {
         // Lowercase all commands.
         transform(cmd.begin(), cmd.end(), cmd.begin(), tolower);
 
-        // std::cout << "[" << cmd << "] ";
-        // if (eoc != nullptr)
-        //   std::cout << "[" << eoc << "]";
-        // else
-        //   std::cout << "nullptr";
-        // std::cout << std::endl;
-
         handle_command(cmd, origin, origin, eoc);
       } else {
+        IRCChannelContext irccc(origin, origin, *this);
+        auto it = fallback_handlers.rbegin();
+        while (it != fallback_handlers.rend()) {
+          if (!(*it)(&irccc, m))
+            return;
+          ++it;
+        }
+
         std::string origin_s = origin;
         privmsg_srv.send({m, REPLY, [this,origin_s](const std::string& reply) {
               msg(origin_s.c_str(), reply.c_str());
@@ -202,29 +212,29 @@ struct MyBot : public IRCSession {
   }
 
   void handle_command(const std::string& cmd, string_t origin, string_t channel, string_t rem) {
-      if (cmd == "snacktime") {
-        snacktime(channel);
-        return;
-      }
+    if (cmd == "snacktime") {
+      snacktime(channel);
+      return;
+    }
 
-      if (cmd == "source") {
-        msg(channel, "https://github.com/ras0219/zinc");
-        return;
-      }
-      if (cmd == "botsnack") {
-        snacks++;
-        std::stringstream ss;
-        ss << "Thanks for the snack! I now have " << snacks << " snack";
-        if (snacks > 1) ss << "s."; else ss << ".";
-        msg(channel, ss.str().c_str());
-        return;
-      }
-      auto it = cmd_handlers.find(cmd);
-      if (it != cmd_handlers.end()) {
-        IRCChannelContext irccc(channel, *this);
-
-        it->second(&irccc, rem);
-      }
+    if (cmd == "source") {
+      msg(channel, "https://github.com/ras0219/zinc");
+      return;
+    }
+    if (cmd == "botsnack") {
+      snacks++;
+      std::stringstream ss;
+      ss << "Thanks for the snack! I now have " << snacks << " snack";
+      if (snacks > 1) ss << "s."; else ss << ".";
+      msg(channel, ss.str().c_str());
+      return;
+    }
+    auto it = cmd_handlers.find(cmd);
+    if (it != cmd_handlers.end()) {
+      IRCChannelContext irccc(channel, origin, *this);
+      
+      it->second(&irccc, rem);
+    }
   }
 
   void snacktime(string_t channel) {
@@ -243,6 +253,7 @@ struct MyBot : public IRCSession {
   }
 
   std::map<std::string, pnp::command_cb> cmd_handlers;
+  std::vector<pnp::fallback_cb> fallback_handlers;
 
 private:
   unsigned int snacks;
@@ -415,6 +426,23 @@ int main(int argc, const char** argv) {
         return -1;
 
       mb.cmd_handlers.erase(it);
+      return 0;
+    }
+
+    int register_fallback(pnp::fallback_cb ptr) {
+      // actual implementation here
+      mb.fallback_handlers.push_back(ptr);
+      return 0;
+    }
+
+    int unregister_fallback(pnp::fallback_cb ptr) {
+      auto it = std::find(mb.fallback_handlers.begin(),
+                          mb.fallback_handlers.end(),
+                          ptr);
+      if (it == mb.fallback_handlers.end())
+        return -1;
+
+      mb.fallback_handlers.erase(it);
       return 0;
     }
 

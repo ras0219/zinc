@@ -68,7 +68,7 @@ namespace IrcCmdPlugin
   }
 
   static str_t plugin_name = "IrcCmd";
-  static SemanticVersion plugin_version = { 0, 1, 1 };
+  static SemanticVersion plugin_version = { 0, 1, 2 };
 
   static PluginBase plugbase = {
     &install,
