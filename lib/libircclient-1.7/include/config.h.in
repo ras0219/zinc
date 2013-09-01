@@ -1,0 +1,2 @@
+#cmakedefine HAVE_GETHOSTBYNAME_R
+#cmakedefine HAVE_LOCALTIME_R
