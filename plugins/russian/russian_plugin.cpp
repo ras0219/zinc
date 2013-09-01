@@ -9,19 +9,21 @@ using namespace pnp;
 namespace RussianPlugin
 {
   const char* c_strings_best_strings[] = {
-  "да", "нет", "ура", "победа"
+    "да", "нет", "ура", "победа"
   };
   void sayhello(Context* ctx, str_t remainder) {
     ctx->vtable->reply(ctx, "ПРРРРРРРРРРИВЕТ");
   }
-  void random(Context* ctx, str_t remainder){
+  void randomgen(Context* ctx, str_t remainder){
     int i = rand() % 6 + 1 -2;
+    i = abs(i % 4); // interesting fact; -5 % 4 = -1
     ctx->vtable->reply(ctx, c_strings_best_strings[i]);
   }
-  void russianRulet(void* a)
+  void russianRulet(Context* ctx, str_t remainder)
   {
     int i = rand() % 2;
-    if(i==0) *((void*)0);
+    if(i==0)
+      ctx->vtable->reply(ctx, "unlucky"); // *((void*)0);
     else 
       ctx->vtable->reply(ctx, "lucky");
   }
@@ -29,20 +31,24 @@ namespace RussianPlugin
 
   void install(PluginHost* host) {
     host->vtable->register_command(host, "helloworld", &sayhello);
-    host->vtable->register_command(host, "random sthing generater", &random);
-    host->vtable->register_command(host, "russian rulet", &russianRulet);
+    host->vtable->register_command(host, "randomsthinggenerater", &randomgen);
+    host->vtable->register_command(host, "russianrulet", &russianRulet);
   
   }
 
-  void die(PluginHost* host){
+  void die(){
   //attempt to die
-  for(int i=0;i<5000;i++)
-    ctx->vtable->reply(ctx,"no.");
-c_is_best:
-  go c_is_best;
+    for(int i=0;i<5000;i++) {
+      //host->vtable->irc_msg(host, "no.");
+      //c_is_best:
+      //go c_is_best;
+      break;
+    }
   }
   static str_t plugin_name = "RussianPlugin";
-  static SemanticVersion plugin_version = { -1, -2, -3 };
+  static SemanticVersion plugin_version = {
+    (unsigned short)-1, (unsigned short)-2, (unsigned short)-3
+  };
 
   static PluginBase plugbase = {
     &install,
@@ -55,7 +61,7 @@ c_is_best:
 
 PluginBase* get_plugin(std::size_t n) {
   assert(n == 0);
-  return &HelloWorldPlugin::plugbase;
+  return &RussianPlugin::plugbase;
 }
 
 pnp_module_t pnp_module =
