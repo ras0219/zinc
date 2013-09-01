@@ -118,7 +118,9 @@ namespace pnp {
       throw std::runtime_error{filename + " is not loaded"};
     assert(lib);
     size_t plug_num = lib->module_info->num_exported_plugins;
+    std::cerr << endl << filename << ": " << plug_num << endl;
     for (size_t i = 0; i < plug_num; ++i) {
+      std::cerr << i << endl;
       PluginBase* pb = lib->module_info->get_plugin(i);
       assert(pb);
       if (pb->plugin_name == plugin_name) {
@@ -135,7 +137,6 @@ namespace pnp {
         linst_to_plugins.insert({lib, pb});
         return pb;
       }
-      ++plug_num;
     }
 
     // Did not find the plugin
