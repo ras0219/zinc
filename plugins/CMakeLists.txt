@@ -1,6 +1,3 @@
-cmake_minimum_required (VERSION 2.6)
-project (zinc_plugins)
-
 include_directories(include)
 
 #ensure that russian plugin is loaded FIRST. This is a MUST
