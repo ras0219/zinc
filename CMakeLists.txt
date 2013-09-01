@@ -32,5 +32,11 @@ target_link_libraries(zinc
   ${Boost_SYSTEM_LIBRARIES}
   ${ZMQ_LIBRARIES})
 
+add_executable(zinc_noirc zinc_noirc.cpp plugins/zinc_plugin_host.cpp)
+target_link_libraries(zinc_noirc
+	${CMAKE_DL_LIBS}
+  json
+  ${ZMQ_LIBRARIES})
+
 add_executable(megabrain_bin megabrain/megabrain.cpp megabrain/megahal-9.1.1/megahal.c)
 target_link_libraries(megabrain_bin ${ZMQ_LIBRARIES})
