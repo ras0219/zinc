@@ -1,3 +1,3 @@
-*.o
-*.d
-zinc
+build
+megahal.brn
+configure
