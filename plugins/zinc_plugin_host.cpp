@@ -72,7 +72,6 @@ namespace pnp {
   }
 
   void ZincPluginHost::add_library_file(const std::string& filename) {
-    std::cerr << "add_library_file(" << filename << ")" << std::endl;
     if (filename_to_linst.find(filename) != filename_to_linst.end()) {
       std::cerr << "Plugin Library \"" << filename << "\" is already loaded!" << std::endl;
       return;
@@ -118,9 +117,7 @@ namespace pnp {
       throw std::runtime_error{filename + " is not loaded"};
     assert(lib);
     size_t plug_num = lib->module_info->num_exported_plugins;
-    std::cerr << endl << filename << ": " << plug_num << endl;
     for (size_t i = 0; i < plug_num; ++i) {
-      std::cerr << i << endl;
       PluginBase* pb = lib->module_info->get_plugin(i);
       assert(pb);
       if (pb->plugin_name == plugin_name) {
@@ -142,38 +139,5 @@ namespace pnp {
     // Did not find the plugin
     return nullptr;
   }
-  // DynamicLib& ZincPluginHost::load_dl(const std::string& filename) {
-  //   auto it = mods.find(filename);
-  //   if (it == mods.end()) {
-  //     auto dl = std::unique_ptr<DynamicLib>{new DynamicLib(filename, RTLD_NOW | RTLD_LOCAL)};
-  //     pnp_module_t* pmt = dl->open_sym<pnp_module_t*>("pnp_module");
-  //     if (pmt != nullptr && pmt->init != nullptr)
-  //       pmt->init();
-  //     it = mods.insert({ filename, { dl.release(), pmt } }).first;
-  //   }
-  //   return *it->second.first;
-  // }
-
-  // pnp_module_t* ZincPluginHost::load_plugin(const std::string& filename) {
-  //   auto it = mods.find(filename);
-  //   if (it == mods.end()) {
-  //     auto dl = std::unique_ptr<DynamicLib>{new DynamicLib(filename, RTLD_NOW | RTLD_LOCAL)};
-  //     pnp_module_t* pmt = dl->open_sym<pnp_module_t*>("pnp_module");
-  //     if (pmt != nullptr && pmt->init != nullptr)
-  //       pmt->init();
-  //     it = mods.insert({ filename, { dl.release(), pmt } }).first;
-  //   }
-  //   return it->second.second;
-  // }
-
-  // void ZincPluginHost::unload_dl(const std::string& filename) {
-  //   auto it = mods.find(filename);
-  //   if (it != mods.end()) {
-  //     if (it->second.second != nullptr && it->second.second->destroy != nullptr)
-  //       it->second.second->destroy();
-  //     delete it->second.first;
-  //     mods.erase(it);
-  //   }
-  // }
 
 }

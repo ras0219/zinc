@@ -2,48 +2,16 @@
 #define _ZINC_PLUGIN_HPP_
 
 #include <cstddef>
-#include <iostream>
-#include <sstream>
+#include <semantic_version>
 #include "thunk_magic"
 
 typedef const char* str_t;
 
 namespace pnp {
-  struct SemanticVersion {
-    unsigned short major;
-    unsigned short minor;
-    unsigned short patch;
-    // TODO: Prerelease field
-    // TODO: Build metadata field
-  };
-
-  inline std::ostream& operator<<(std::ostream& os, SemanticVersion sv) {
-    std::stringstream ss;
-    ss << sv.major << "." << sv.minor << "." << sv.patch;
-    os << ss.str();
-    return os;
-  }
-
-  inline bool operator==(SemanticVersion sv1, SemanticVersion sv2) {
-    return sv1.major == sv2.major
-      && sv1.minor == sv2.minor
-      && sv1.patch == sv2.patch;
-  }
-  inline bool operator!=(SemanticVersion sv1, SemanticVersion sv2) {
-    return !(sv1 == sv2);
-  }
-
-  inline bool compatible(SemanticVersion library, SemanticVersion required) {
-    if (library == required) return true;
-    if (library.major == 0) return false;
-    if (library.major != required.major) return false;
-    if (library.minor < required.minor) return false;
-    return true;
-  }
-
   struct Context;
   struct ContextVTable {
     void (*reply)(Context* ctx, str_t msg);
+
     // Add context questions
     bool (*is_irc)(Context* ctx);
     bool (*is_local)(Context* ctx);
@@ -110,8 +78,8 @@ namespace pnp {
     // Method
     void (*install)(PluginHost* ph);
     void (*uninstall)();
-    // If transfer succeeds, previous plugin should be completely uninstalled
-    // If transfer fails, previous plugin should be undisturbed
+    // If transfer succeeds, previous plugin should be completely uninstalled (return 0)
+    // If transfer fails, previous plugin should be undisturbed (return -1)
     int (*transfer)(PluginBase* prev_version);
 
     // Attributes

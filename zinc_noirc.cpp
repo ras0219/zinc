@@ -130,47 +130,90 @@ struct Configuration {
   { }
   };
 
+#ifndef NDEBUG
+ostream* logger = &std::cerr;
+#else
+ostream* logger = nullptr;
+#endif
+
+inline void log_(ostream& os) {}
+
+template<class T, class ... Args>
+inline void log_(ostream& os, T t, Args... args) {
+  log_(*logger << t, args...);
+}
+template<class T, class ... Args>
+inline void log_(ostream& os, T* t, Args... args) {
+  log_(*logger << hex << (unsigned long)t << dec, args...);
+}
+template<class ... Args>
+inline void log_(ostream& os, const char* t, Args... args) {
+  log_(*logger << t, args...);
+}
+template<class ... Args>
+inline void log_(ostream& os, char* t, Args... args) {
+  log_(*logger << t, args...);
+}
+
+template<class ... Args>
+inline void log(Args... args) {
+  if (logger) {
+    log_(*logger, args...);
+    *logger << endl;
+  }
+}
+
 struct IO_Concept {
   int register_command(str_t cmd, pnp::command_cb ptr) {
+    log("Registering command '", cmd, "'");
     // actual implementation here
-    if (cmd_handlers.find(cmd) != cmd_handlers.end())
+    if (cmd_handlers.find(cmd) != cmd_handlers.end()) {
+      log("Registration failed for '", cmd, "'");
       return -1;
+    }
     cmd_handlers.insert({cmd, ptr});
     return 0;
   }
 
   int unregister_command(str_t cmd) {
+    log("Unregistering command '", cmd, "'");
     auto it = cmd_handlers.find(cmd);
-    if (it == cmd_handlers.end())
+    if (it == cmd_handlers.end()) {
+      log("Unregistration failed for '", cmd, "'");
       return -1;
+    }
 
     cmd_handlers.erase(it);
     return 0;
   }
 
   int register_fallback(pnp::fallback_cb ptr) {
+    log("Registering fallback ", ptr);
     // actual implementation here
     fallback_handlers.push_back(ptr);
     return 0;
   }
 
   int unregister_fallback(pnp::fallback_cb ptr) {
+    log("Unregistering fallback ", ptr);
     auto it = std::find(fallback_handlers.begin(),
                         fallback_handlers.end(),
                         ptr);
-    if (it == fallback_handlers.end())
+    if (it == fallback_handlers.end()) {
+      log("Unregistration failed for fallback ", ptr);
       return -1;
+    }
 
     fallback_handlers.erase(it);
     return 0;
   }
 
   void irc_join(str_t channel) {
-    
+    log("Joining Irc Channel '", channel, "'");
   }
 
   void irc_msg(str_t target, str_t msg) {
-    
+    log("Sending Irc Message '", msg, "' to '", target, "'");
   }
 
   map<string, pnp::command_cb> cmd_handlers;
@@ -196,22 +239,7 @@ int main(int argc, const char** argv) {
   struct ZincPluginHostProxy : pnp::PluginHostThunk<ZincPluginHostProxy> {
     ZincPluginHostProxy(pnp::ZincPluginHost& z) : zph(z) {}
 
-    int register_command(str_t cmd, pnp::command_cb ptr) {
-      return ioc.register_command(cmd, ptr);
-    }
-
-    int unregister_command(str_t cmd) {
-      return ioc.unregister_command(cmd);
-    }
-
-    int register_fallback(pnp::fallback_cb ptr) {
-      return ioc.register_fallback(ptr);
-    }
-
-    int unregister_fallback(pnp::fallback_cb ptr) {
-      return ioc.unregister_fallback(ptr);
-    }
-
+    // Library provisions. These are tied to being a 'ProxyHost'
     size_t num_libraries() { return zph.num_libraries(); }
     size_t list_libraries(size_t n, const pnp::LibraryInstance** libs) {
       size_t z = min(n, zph.num_libraries());
@@ -250,6 +278,24 @@ int main(int argc, const char** argv) {
       return 0;
     }
 
+    // Command/input processing. These are tied to being an 'Interactive'
+    int register_command(str_t cmd, pnp::command_cb ptr) {
+      return ioc.register_command(cmd, ptr);
+    }
+
+    int unregister_command(str_t cmd) {
+      return ioc.unregister_command(cmd);
+    }
+
+    int register_fallback(pnp::fallback_cb ptr) {
+      return ioc.register_fallback(ptr);
+    }
+
+    int unregister_fallback(pnp::fallback_cb ptr) {
+      return ioc.unregister_fallback(ptr);
+    }
+
+    // Irc manipulation. These are tied to being a 'Channel-based Interactive'
     void irc_join(str_t channel) {
       ioc.irc_join(channel);
     }
