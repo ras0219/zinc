@@ -1,5 +1,6 @@
 #include <zinc_plugin_host>
 #include <zinc_interactive>
+#include <zinc_channelio>
 #include <iostream>
 #include <cstring>
 #include <iomanip>
@@ -8,8 +9,11 @@
 using namespace std;
 using namespace zinc;
 
-struct DebugInteractive {
+struct Debug {
+  std::vector<command_cb> commands;
+
   int register_command(str_t cmd, command_cb cb) {
+    assert(x == 93);
     cout << "Call to register_command. [base=";
     if (cmd == nullptr)
       cout << "nullptr";
@@ -19,10 +23,13 @@ struct DebugInteractive {
     cout << ", ";
     cout << hex << (size_t)cb << dec << "]" << endl;
 
+    commands.push_back(cb);
+
     return 0;
   }
 
   int unregister_command(str_t cmd) {
+    assert(x == 93);
     cout << "Call to unregister_command. [base=";
     if (cmd == nullptr)
       cout << "nullptr";
@@ -34,13 +41,58 @@ struct DebugInteractive {
     return 0;
   }
 
-  DebugInteractive()
+  void join_channel(str_t channel) {
+    assert(x == 93);
+    cout << "Call to join_channel. [channel=";
+    if (channel == nullptr)
+      cout << "nullptr";
+    else
+      cout << '"' << channel << '"';
+    cout << "]" << endl;
+  }
+
+  void send_message(str_t channel, str_t msg) {
+    assert(x == 93);
+    cout << "Call to join_channel. [channel=";
+    if (channel == nullptr)
+      cout << "nullptr";
+    else
+      cout << '"' << channel << '"';
+    cout << ",msg=";
+    if (msg == nullptr)
+      cout << "nullptr";
+    else
+      cout << '"' << msg << '"';
+    cout << "]" << endl;
+  }
+
+  void send(str_t msg) {
+    assert(x == 93);
+    cout << "Call to reply. [msg=";
+    if (msg == nullptr)
+      cout << "nullptr";
+    else
+      cout << '"' << msg << '"';
+    cout << "]" << endl;
+  }
+
+  Debug()
     : interactive(Interactive
-                  ::Impl<DebugInteractive, offsetof(DebugInteractive, interactive)>
-                  ::interface)
+                  ::Impl<Debug, offsetof(Debug, interactive)>
+                  ::interface),
+      channelio(ChannelIO
+                ::Impl<Debug, offsetof(Debug, channelio)>
+                ::interface),
+      zostream(OStream
+               ::Impl<Debug, offsetof(Debug, zostream)>
+               ::interface),
+      x(93)
     {}
 
   Interactive::Interface interactive;
+  ChannelIO::Interface channelio;
+  OStream::Interface zostream;
+  int x;
 };
 
 int main(int argc, char** argv) {
@@ -98,8 +150,10 @@ int main(int argc, char** argv) {
   }
 
   InterfaceUnifier unifier;
-  DebugInteractive di;
+  Debug di;
   unifier.available.push_back((Interface*)&di.interactive);
+  unifier.available.push_back((Interface*)&di.channelio);
+  unifier.available.push_back((Interface*)&di.zostream);
 
   cout << endl << "Loading plugin '" << plug->name << "'" << endl;
   cout << "Requirements: " << plug->num_reqs << endl;
@@ -116,6 +170,10 @@ int main(int argc, char** argv) {
   cout << "Installing..." << endl;
   assert(plug->install);
   plug->install(ifaces.data());
+
+  for (auto x : di.commands)
+    x(&di.zostream, nullptr);
+
   cout << "Uninstalling...." << endl;
   assert(plug->uninstall);
   plug->uninstall();

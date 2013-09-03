@@ -26,14 +26,27 @@ namespace zinc {
     template<class T, std::size_t offset>
     struct Impl {
       using ProviderT = InterfaceProviderT<Descriptor, T, Interface, offset>;
+
       using Convert =
         StaticOffsetConvert<T, Interface, offset>;
       
-      static constexpr VTable static_vtable = {
-        make_thunk3<Interface, DDECLTYPE(&T::join_channel), Convert>::func,
-        make_thunk3<Interface, DDECLTYPE(&T::send_message), Convert>::func,
-      };
+      static const VTable static_vtable;
+      static const Interface interface;
     };
+  };
+
+  template<class T, std::size_t offset>
+  const ChannelIO::VTable
+  ChannelIO::Impl<T,offset>::static_vtable = {
+    make_thunk3<Interface, DDECLTYPE(&T::join_channel), Convert>::func,
+    make_thunk3<Interface, DDECLTYPE(&T::send_message), Convert>::func,
+  };
+
+  template<class T, std::size_t offset>
+  const ChannelIO::Interface
+  ChannelIO::Impl<T,offset>::interface = {
+    &ChannelIO::Impl<T,offset>::static_vtable,
+    &ChannelIO::Impl<T,offset>::ProviderT::provider
   };
 
 }

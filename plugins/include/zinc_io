@@ -17,7 +17,7 @@ namespace zinc {
     using Interface = InterfaceT<VTable>;
 
     struct VTable {
-      void (*reply)(Interface* ctx, str_t msg);
+      void (*send)(Interface* ctx, str_t msg);
     };
 
     using Request = InterfaceRequestT<Descriptor>;
@@ -25,13 +25,26 @@ namespace zinc {
     template<class T, std::size_t offset>
     struct Impl {
       using ProviderT = InterfaceProviderT<Descriptor, T, Interface, offset>;
+
       using Convert =
         StaticOffsetConvert<T, Interface, offset>;
-      
-      static constexpr VTable static_vtable = {
-        make_thunk3<Interface, DDECLTYPE(&T::reply), Convert>::func,
-      };
+
+      static const VTable static_vtable;
+      static const Interface interface;
     };
+  };
+
+  template<class T, std::size_t offset>
+  const OStream::VTable
+  OStream::Impl<T,offset>::static_vtable = {
+    make_thunk3<Interface, DDECLTYPE(&T::send), Convert>::func,
+  };
+
+  template<class T, std::size_t offset>
+  const OStream::Interface
+  OStream::Impl<T,offset>::interface = {
+    &OStream::Impl<T,offset>::static_vtable,
+    &OStream::Impl<T,offset>::ProviderT::provider
   };
 
 }

@@ -53,7 +53,7 @@ namespace IrcCmdPlugin
 
   void joinchannel(OStream::Interface* ctx, str_t remainder) {
     if (remainder == nullptr or *remainder == 0) {
-      ctx->vtable->reply(ctx, "Usage: -join <channel>");
+      ctx->vtable->send(ctx, "Usage: -join <channel>");
       return;
     }
     ii->ch->vtable->join_channel(ii->ch, remainder);

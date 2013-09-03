@@ -9,7 +9,7 @@ using namespace zinc;
 namespace HelloWorldPlugin
 {
   void sayhello(OStream::Interface* os, str_t) {
-    os->vtable->reply(os, "Hello, World!");
+    os->vtable->send(os, "Hello, World!");
   }
 
   struct InstallInterfaces {
