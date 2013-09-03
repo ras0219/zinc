@@ -4,9 +4,11 @@
 #include <string>
 #include <map>
 #include <vector>
+#include <algorithm>
 #include <cassert>
 #include <zinc_plugin>
 #include <zinc_dlfcn>
+#include <zinc_kernel>
 
 namespace zinc {
   struct LibraryManager {
@@ -47,6 +49,66 @@ namespace zinc {
     inline std::vector<Interface*>
     unify_request(const Plugin* plug)
       { return unify_request(plug->num_reqs, plug->reqs); }
+  };
+
+  struct DefaultKernel {
+    DefaultKernel()
+      : kernel(Kernel
+               ::Impl<DefaultKernel, offsetof(DefaultKernel, kernel)>
+               ::interface),
+        unifier{{(Interface*)&kernel}}
+      { }
+
+    inline void register_interface(zinc::Interface* iface) {
+      unifier.available.push_back(iface);
+    }
+    inline void unregister_interface(zinc::Interface* iface) {
+      auto it = std::find(unifier.available.begin(),
+                          unifier.available.end(),
+                          iface);
+      if (it != unifier.available.end())
+        unifier.available.erase(it);
+    }
+
+    inline std::size_t num_avail_interfaces() { return unifier.available.size(); }
+    inline void get_avail_interfaces(zinc::Interface** ifaces) {
+      for (auto i : unifier.available)
+        *ifaces++ = i;
+    }
+
+    inline void load_library_file(str_t filename) {
+      libman.load_library_file(filename);
+    }
+
+    inline void unload_library_file(str_t filename) {
+      libman.unload_library_file(filename);
+    }
+
+    inline int load_plugin(str_t filename, str_t pluginname) {
+      Plugin* plug = libman.locate_plugin(filename, pluginname);
+      if (plug == nullptr)
+        // Could not find plugin
+        return -1;
+      std::vector<Interface*> ifaces = unifier.unify_request(plug);
+      if (ifaces.size() != plug->num_reqs)
+        // Could not satisfy all requrirements
+        return -2;
+      if (plug->install == nullptr)
+        // Plugin is invalid
+        return -3;
+      plug->install(ifaces.data());
+      return 0;
+    }
+
+    inline int unload_plugin(str_t filename, str_t pluginname) {
+      // currently cannot unload plugins
+      return -1;
+    }
+
+    Kernel::Interface kernel;
+
+    LibraryManager libman;
+    InterfaceUnifier unifier;
   };
 }
 

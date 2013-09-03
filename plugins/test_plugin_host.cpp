@@ -1,6 +1,7 @@
 #include <zinc_plugin_host>
 #include <zinc_interactive>
 #include <zinc_channelio>
+#include <zinc_pollhost>
 #include <iostream>
 #include <cstring>
 #include <iomanip>
@@ -36,6 +37,25 @@ struct Debug {
     else
       cout << '"' << cmd << '"';
 
+    cout << "]" << endl;
+
+    return 0;
+  }
+
+  int register_pollfd(pollfd cmd, poll_cb cb) {
+    assert(x == 93);
+    cout << "Call to register_pollfd. [pollfd=";
+    cout << cmd.fd << "." << cmd.events;
+    cout << ", ";
+    cout << hex << (size_t)cb << dec << "]" << endl;
+
+    return 0;
+  }
+
+  int unregister_pollfd(pollfd cmd) {
+    assert(x == 93);
+    cout << "Call to unregister_pollfd. [pollfd=";
+    cout << cmd.fd << "." << cmd.events;
     cout << "]" << endl;
 
     return 0;
@@ -86,12 +106,16 @@ struct Debug {
       zostream(OStream
                ::Impl<Debug, offsetof(Debug, zostream)>
                ::interface),
+      pollhost(PollHost
+               ::Impl<Debug, offsetof(Debug, pollhost)>
+               ::interface),
       x(93)
     {}
 
   Interactive::Interface interactive;
   ChannelIO::Interface channelio;
   OStream::Interface zostream;
+  PollHost::Interface pollhost;
   int x;
 };
 
@@ -154,6 +178,7 @@ int main(int argc, char** argv) {
   unifier.available.push_back((Interface*)&di.interactive);
   unifier.available.push_back((Interface*)&di.channelio);
   unifier.available.push_back((Interface*)&di.zostream);
+  unifier.available.push_back((Interface*)&di.pollhost);
 
   cout << endl << "Loading plugin '" << plug->name << "'" << endl;
   cout << "Requirements: " << plug->num_reqs << endl;
