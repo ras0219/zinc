@@ -1,6 +1,11 @@
 #ifndef _THUNK_MAGIC_HPP_
 #define _THUNK_MAGIC_HPP_
 
+template<class T, class U>
+struct StaticCastConv {
+  static inline T* convert(U* u) { return static_cast<T*>(u); }
+};
+
 template<class T>
 struct thunk_mpty;
 template<class R, class P, class ... Args>
@@ -8,11 +13,23 @@ struct thunk_mpty<R (P::*)(Args...)> {
   typedef P Base;
   template<R (P::*memptr)(Args...)>
   struct thunk_mp {
-    template<class P2>
+    template< class P2, class Conv = StaticCastConv<P,P2> >
     static R func(P2* p, Args... args) {
-      return (static_cast<P*>(p)->*memptr)(args...);
+      return (Conv::convert(p)->*memptr)(args...);
     }
   };
+};
+
+// Conv argument should have
+//   DeriveMP* convert(Base*)
+template<class Base, class DeriveMP, DeriveMP f, class Conv>
+struct make_thunk3 {
+  typedef decltype(&thunk_mpty<DeriveMP>::template
+                   thunk_mp<f>::template
+                   func<Base, Conv>) thunk_type;
+  
+  static constexpr thunk_type func =
+    &thunk_mpty<DeriveMP>::template thunk_mp<f>::template func<Base,Conv>;
 };
 
 template<class Base, class DeriveMP, DeriveMP f>
@@ -21,11 +38,9 @@ struct make_thunk2 {
                    thunk_mp<f>::template
                    func<Base>) thunk_type;
 
-  static thunk_type func;
+  static constexpr thunk_type func =
+    &thunk_mpty<DeriveMP>::template thunk_mp<f>::template func<Base>;
 };
-template<class Base, class DeriveMP, DeriveMP f>
-typename make_thunk2<Base,DeriveMP,f>::thunk_type make_thunk2<Base,DeriveMP,f>::func =
-  &thunk_mpty<DeriveMP>::template thunk_mp<f>::template func<Base>;
 
 
 // For not swapping the base type
@@ -36,13 +51,11 @@ struct make_thunk {
                    thunk_mp<f>::template
                    func<Base>) thunk_type;
 
-  static thunk_type func;
+  static constexpr thunk_type func =
+    &thunk_mpty<DeriveMP>::template
+    thunk_mp<f>::template
+    func<typename make_thunk<DeriveMP,f>::Base>;
 };
-template<class DeriveMP, DeriveMP f>
-typename make_thunk<DeriveMP,f>::thunk_type make_thunk<DeriveMP,f>::func =
-  &thunk_mpty<DeriveMP>::template
-  thunk_mp<f>::template
-  func<typename make_thunk<DeriveMP,f>::Base>;
 
 #define DDECLTYPE(A) decltype(A), A
 

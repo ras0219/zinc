@@ -1,0 +1,43 @@
+#ifndef _ZINC_IO_HPP_
+#define _ZINC_IO_HPP_
+
+#include <semantic_version>
+#include <zinc_interface>
+#include <thunk_magic>
+
+namespace zinc {
+
+  struct OStream {
+    struct Descriptor {
+      static constexpr str_t name = "ostream";
+      static constexpr SemanticVersion version = {0, 0, 0};
+    };
+
+    struct VTable;
+    using Interface = InterfaceT<VTable>;
+
+    struct VTable {
+      void (*reply)(Interface* ctx, str_t msg);
+    };
+
+    using Request = InterfaceRequestT<Descriptor>;
+
+    template<class T, std::size_t offset>
+    struct Impl {
+      using ProviderT = InterfaceProviderT<Descriptor, T, Interface, offset>;
+      using Convert =
+        StaticOffsetConvert<T, Interface, offset>;
+      
+      static constexpr VTable static_vtable = {
+        make_thunk3<Interface, DDECLTYPE(&T::reply), Convert>::func,
+      };
+    };
+  };
+
+}
+
+#endif
+
+// Local Variables:
+// mode: c++
+// End:

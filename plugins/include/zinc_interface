@@ -1,0 +1,101 @@
+#ifndef _ZINC_INTERFACE_HPP_
+#define _ZINC_INTERFACE_HPP_
+
+#include <cstddef>
+#include <semantic_version>
+#include <iostream>
+
+typedef const char* str_t;
+
+namespace zinc {
+
+  // Structure to request an interface
+  struct InterfaceRequest {
+    // Name of the requested interface
+    str_t name;
+    // Version of the requested interface, using the semantic versioning scheme
+    SemanticVersion version;
+    // Urgency of the request; is this request mandatory?
+    bool required;
+  };
+
+  template<class Descriptor>
+  struct InterfaceRequestT {
+    static constexpr InterfaceRequest required = {
+      Descriptor::name,
+      Descriptor::version,
+      true
+    };
+    static constexpr InterfaceRequest optional = {
+      Descriptor::name,
+      Descriptor::version,
+      false
+    };
+  };
+
+  struct InterfaceProvider {
+    // Name of the provided interface
+    str_t name;
+    // Version of the provided interface
+    SemanticVersion version;
+    // Virtual base offset for conversion
+    size_t vbase_offset;
+  };
+
+
+  struct InterfaceVTable;
+  // Used in objects which implement the appropriate interface
+  template<class VTable = InterfaceVTable>
+  struct InterfaceT {
+    const VTable* vtable;
+    const InterfaceProvider* ip;
+  };
+  typedef InterfaceT<> Interface;
+
+
+  template<class Descriptor, class T, class IFace, std::size_t offset>
+  struct InterfaceProviderT;
+
+  // Specialization for interfaces
+  template<class Descriptor, class T, class VTable, std::size_t offset>
+  struct InterfaceProviderT<Descriptor, T, InterfaceT<VTable>, offset> {
+    static const InterfaceProvider provider;
+  };
+
+  template<class Descriptor, class T, class VTable, std::size_t offset>
+  const InterfaceProvider
+  InterfaceProviderT<Descriptor, T, InterfaceT<VTable>, offset>::provider = {
+    Descriptor::name,
+    Descriptor::version,
+    offset
+  };
+
+  template<class T, class U, size_t offset>
+  struct StaticOffsetConvert {
+    static inline T* convert(U* u) {
+      return (T*)((char*)(u) - offset);
+    }
+  };
+
+}
+
+// Some operator<< definitions for debugging purposes
+inline std::ostream& operator<<(std::ostream& os, const zinc::InterfaceRequest& ir) {
+  return os << "[REQ:"
+            << ir.name << ":"
+            << ir.version << ":"
+            << ir.required << "]";
+}
+inline std::ostream& operator<<(std::ostream& os, const zinc::Interface& ir) {
+  return os << "[IF:"
+            << ir.ip->name << ":"
+            << ir.ip->version << ":"
+            << ir.ip->vbase_offset << ":"
+            << std::hex << (size_t)ir.vtable << std::dec << "]";
+}
+
+#endif
+
+// Local Variables:
+// mode: c++
+// End:
