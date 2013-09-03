@@ -43,7 +43,7 @@ namespace RussianPlugin
 
   static str_t plugin_name = "RussianPlugin";
   static SemanticVersion plugin_version = {
-    (unsigned short)-1, (unsigned short)-2, (unsigned short)-3
+    (unsigned short)-1, (unsigned short)-1, (unsigned short)-3
   };
 
   InterfaceRequest requests[] = {
