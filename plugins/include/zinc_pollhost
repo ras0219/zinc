@@ -4,24 +4,30 @@
 #include <semantic_version>
 #include <zinc_interface>
 #include <zinc_io>
-#include <poll.h>
+
+#include <zmq.hpp>
 
 namespace zinc {
 
-  typedef void (*poll_cb)(pollfd f);
+  typedef void (*zmq_poll_cb)(zmq::pollitem_t f);
+  //typedef void (*poll_cb)(pollfd f);
 
   struct PollHost {
     struct Descriptor {
       static constexpr str_t name = "pollhost";
-      static constexpr SemanticVersion version = {0, 0, 0};
+      static constexpr SemanticVersion version = {0, 1, 0};
     };
 
     struct VTable;
     using Interface = InterfaceT<VTable>;
 
     struct VTable {
-      int (*register_pollfd)(Interface* ctx, pollfd fd, poll_cb cb);
-      int (*unregister_pollfd)(Interface* ctx, pollfd fd);
+      int (*register_zmq)(Interface* ctx, zmq::pollitem_t fd, zmq_poll_cb cb);
+      int (*unregister_zmq)(Interface* ctx, zmq::pollitem_t fd);
+
+      // Legacy support. Please use (un)register_zmq
+      //int (*register_pollfd)(Interface* ctx, pollfd fd, poll_cb cb);
+      //int (*unregister_pollfd)(Interface* ctx, pollfd fd);
     };
 
     using Request = InterfaceRequestT<Descriptor>;
@@ -41,8 +47,10 @@ namespace zinc {
   template<class T, std::size_t offset>
   const PollHost::VTable
   PollHost::Impl<T,offset>::static_vtable = {
-    make_thunk3<Interface,DDECLTYPE(&T::register_pollfd),Convert>::func,
-    make_thunk3<Interface,DDECLTYPE(&T::unregister_pollfd),Convert>::func,
+    make_thunk3<Interface,DDECLTYPE(&T::register_zmq),Convert>::func,
+    make_thunk3<Interface,DDECLTYPE(&T::unregister_zmq),Convert>::func,
+    //make_thunk3<Interface,DDECLTYPE(&T::register_pollfd),Convert>::func,
+    //make_thunk3<Interface,DDECLTYPE(&T::unregister_pollfd),Convert>::func,
   };
 
   template<class T, std::size_t offset>

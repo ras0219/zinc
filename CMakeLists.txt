@@ -28,7 +28,8 @@ add_executable(zinc
   ircpp.cpp
   plugins/zinc_plugin_host.cpp
   plugins/zinc_dlfcn.cpp
-  zinc_config.cpp)
+  zinc_config.cpp
+  zinc_zmq_pollhost.cpp)
 target_link_libraries(zinc
 	${CMAKE_DL_LIBS}
   ircclient

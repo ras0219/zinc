@@ -30,18 +30,14 @@ extern "C" {
 #include <zinc_interactive>
 #include <zinc_channelio>
 #include <zinc_io>
+#include <zinc_pollhost>
 #include "zinc_config.hpp"
-
-struct zmq_pollitem_adapter {
-  int fd;
-  short events;
-  short revents;
-  operator zmq::pollitem_t() { return {0, fd, events, revents}; }
-};
+#include "zinc_zmq_pollhost.hpp"
 
 using namespace std;
 using zinc::Interactive;
 using zinc::OStream;
+using zinc::PollHost;
 using zinc::ChannelIO;
 
 struct Bot : public IRCSession {
@@ -172,6 +168,15 @@ struct Bot : public IRCSession {
   string nick;
 };
 
+struct PollCB {
+  static Bot* bot;
+    
+  static void poll_cb(zmq::pollitem_t fd) {
+    bot->process_poll_descriptors<ZMQ_POLLIN, ZMQ_POLLOUT>(&fd, &fd + 1);
+  }
+};
+Bot* PollCB::bot = nullptr;
+
 int main(int argc, const char** argv) {
   zmq::context_t context(1);
 
@@ -199,18 +204,28 @@ int main(int argc, const char** argv) {
   int port = config.get_int_config(L"serverport", 6667);
 
   Bot s(serveraddr.c_str(),
-          port,
-          serverpass.empty() ? NULL : serverpass.c_str(),
-          username.c_str(),
-          nickname.c_str(),
-          realname.c_str()// ,
-          // mhserv
-    );
+        port,
+        serverpass.empty() ? NULL : serverpass.c_str(),
+        username.c_str(),
+        nickname.c_str(),
+        realname.c_str());
+
+  zinc::ZMQ_PollHost zmqph;
+  {
+    PollCB::bot = &s;
+
+    s.add_poll_descriptors<zinc::zmq_pollitem_adapter, ZMQ_POLLIN, ZMQ_POLLOUT>
+      (std::back_inserter(zmqph.pollfds));
+    auto sz = zmqph.pollfds.size();
+    for (size_t x = 0; x < sz; ++x)
+      zmqph.pollcbs.push_back(PollCB::poll_cb);
+  }
 
   zinc::DefaultKernel kern;
 
   kern.register_interface((zinc::Interface*)&s.interactive);
   kern.register_interface((zinc::Interface*)&s.channelio);
+  kern.register_interface((zinc::Interface*)&zmqph.pollhost);
 
   JSONValue* loadlibs = config.get_path(L"loadplugins");
 
@@ -235,29 +250,7 @@ int main(int argc, const char** argv) {
     }
   }
 
-  std::vector<zmq::pollitem_t> pollfds;
-
   while (true) {
-    pollfds.clear();
-
-    // Add the zmq poll descriptors to the beginning
-    //mhserv.add_to_zmq_pollfds(std::back_inserter(pollfds));
-
-    // Mark where irc's pollfds begin
-    auto irc_begin_nth = pollfds.size();
-
-    // Add the irc poll descriptors to the end
-    s.add_poll_descriptors<zmq_pollitem_adapter, ZMQ_POLLIN, ZMQ_POLLOUT>
-      (std::back_inserter(pollfds));
-
-    // Block for events
-    zmq::poll(pollfds.data(), pollfds.size(), -1);
-
-    // Process zmq poll descriptors
-    //mhserv.process_zmq_pollfds(pollfds.begin(), pollfds.begin() + irc_begin_nth);
-
-    // Process irc poll descriptors
-    s.process_poll_descriptors<ZMQ_POLLIN, ZMQ_POLLOUT>
-      (pollfds.begin() + irc_begin_nth, pollfds.end());
+    zmqph.poll_once();
   }
 }
