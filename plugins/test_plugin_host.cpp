@@ -42,7 +42,7 @@ struct Debug {
     return 0;
   }
 
-  int register_pollfd(pollfd cmd, poll_cb cb) {
+  int register_zmq(zmq::pollitem_t cmd, zmq_poll_cb cb) {
     assert(x == 93);
     cout << "Call to register_pollfd. [pollfd=";
     cout << cmd.fd << "." << cmd.events;
@@ -52,7 +52,7 @@ struct Debug {
     return 0;
   }
 
-  int unregister_pollfd(pollfd cmd) {
+  int unregister_zmq(zmq::pollitem_t cmd) {
     assert(x == 93);
     cout << "Call to unregister_pollfd. [pollfd=";
     cout << cmd.fd << "." << cmd.events;
