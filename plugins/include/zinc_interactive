@@ -12,7 +12,7 @@ namespace zinc {
   struct Interactive {
     struct Descriptor {
       static constexpr str_t name = "interactive";
-      static constexpr SemanticVersion version = {0, 0, 0};
+      static constexpr SemanticVersion version = {0, 1, 0};
     };
 
     struct VTable;
@@ -21,6 +21,10 @@ namespace zinc {
     struct VTable {
       int (*register_command)(Interface* ctx, str_t cmd, command_cb cb);
       int (*unregister_command)(Interface* ctx, str_t cmd);
+
+      std::size_t (*num_avail_commands)(Interface* ctx);
+      // NOTE: is invalidated if a command is registered or unregistered
+      void (*get_avail_commands)(Interface* ctx, str_t* cmds);
     };
 
     using Request = InterfaceRequestT<Descriptor>;
@@ -42,6 +46,8 @@ namespace zinc {
   Interactive::Impl<T,offset>::static_vtable = {
     make_thunk3<Interface,DDECLTYPE(&T::register_command),Convert>::func,
     make_thunk3<Interface,DDECLTYPE(&T::unregister_command),Convert>::func,
+    make_thunk3<Interface,DDECLTYPE(&T::num_avail_commands),Convert>::func,
+    make_thunk3<Interface,DDECLTYPE(&T::get_avail_commands),Convert>::func,
   };
 
   template<class T, std::size_t offset>

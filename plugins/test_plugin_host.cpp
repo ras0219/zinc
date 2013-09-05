@@ -96,6 +96,21 @@ struct Debug {
     cout << "]" << endl;
   }
 
+  std::size_t num_avail_commands() {
+    assert(x == 93);
+    cout << "Call to num_avail_commands." << endl;
+    return 5;
+  }
+
+  void get_avail_commands(str_t* cmds) {
+    static str_t cmdnames[] = { "debug0", "debug1", "debug2", "debug3", "debug4" };
+    assert(x == 93);
+    cout << "Call to get_avail_commands." << endl;
+    for (int x = 0; x < 5; ++x) {
+      cmds[x] = cmdnames[x];
+    }
+  }
+
   Debug()
     : interactive(Interactive
                   ::Impl<Debug, offsetof(Debug, interactive)>

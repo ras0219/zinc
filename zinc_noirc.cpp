@@ -86,6 +86,15 @@ struct Bot {
     it->second(&reply.os, eoc);
   }
 
+  // Functions required to implement the "ChannelIO" interface
+  void join_channel(str_t channel) {
+    cout << "Joined channel '" << channel << "'" << endl;
+  }
+
+  void send_message(str_t channel, str_t m) {
+    cout << "Sent message to '" << channel << "': '" << m << "'" << endl;
+  }
+
   // Functions required to implement the "Interactive" interface
   int register_command(str_t cmd, zinc::command_cb cb) {
     cerr << "Registered command '" << cmd << "'" << endl;
@@ -106,6 +115,11 @@ struct Bot {
     }
     commands.erase(it);
     return 0;
+  }
+  std::size_t num_avail_commands() { return commands.size(); }
+  void get_avail_commands(str_t* cmds) {
+    for (auto p : commands)
+      *cmds++ = p.first.c_str();
   }
 
   Interactive::Interface interactive;
