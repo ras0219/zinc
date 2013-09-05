@@ -79,9 +79,13 @@ namespace IrcCmdPlugin
   void install(Interface** ifaces) {
     InstallInterfaces ii = *(InstallInterfaces*)(ifaces);
     ii.i->vtable->register_command(ii.i, "join", &joinchannel);
+    ii.i->vtable->register_command(ii.i, "commands", &listcmds);
+    ii.i->vtable->register_command(ii.i, "help", &listcmds);
   }
   void uninstall() {
     ii.i->vtable->unregister_command(ii.i, "join");
+    ii.i->vtable->unregister_command(ii.i, "commands");
+    ii.i->vtable->unregister_command(ii.i, "help");
   }
 
   static str_t plugin_name = "IrcCmd";
