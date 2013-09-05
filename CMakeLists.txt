@@ -23,7 +23,12 @@ set(CMAKE_CXX_FLAGS_RELWITHDEBINFO "${CMAKE_CXX_FLAGS_RELWITHDEBINFO} -O2 -g")
 
 add_subdirectory(plugins)
 
-add_executable(zinc zinc.cpp ircpp.cpp plugins/zinc_plugin_host.cpp)
+add_executable(zinc
+  zinc.cpp
+  ircpp.cpp
+  plugins/zinc_plugin_host.cpp
+  plugins/zinc_dlfcn.cpp
+  zinc_config.cpp)
 target_link_libraries(zinc
 	${CMAKE_DL_LIBS}
   ircclient
@@ -32,10 +37,16 @@ target_link_libraries(zinc
   ${Boost_SYSTEM_LIBRARIES}
   ${ZMQ_LIBRARIES})
 
-add_executable(zinc_noirc zinc_noirc.cpp plugins/zinc_plugin_host.cpp)
+add_executable(zinc_noirc
+  zinc_noirc.cpp
+  plugins/zinc_plugin_host.cpp
+  plugins/zinc_dlfcn.cpp
+  zinc_config.cpp)
 target_link_libraries(zinc_noirc
 	${CMAKE_DL_LIBS}
   json
+  ${Boost_FILESYSTEM_LIBRARIES}
+  ${Boost_SYSTEM_LIBRARIES}
   ${ZMQ_LIBRARIES})
 
 add_executable(megabrain_bin megabrain/megabrain.cpp megabrain/megahal-9.1.1/megahal.c)

@@ -40,6 +40,7 @@ struct IRCSession {
   void join(string_t channel, string_t password);
   void part(string_t channel);
   void msg(string_t target, string_t m);
+  void notice(string_t target, string_t m);
   void me(string_t target, string_t m);
   void invite(string_t nick, string_t channel);
   void names(string_t channel);
