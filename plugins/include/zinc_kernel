@@ -1,0 +1,74 @@
+#ifndef _ZINC_KERNEL_HPP_
+#define _ZINC_KERNEL_HPP_
+
+#include <semantic_version>
+#include <zinc_interface>
+#include <thunk_magic>
+
+namespace zinc {
+
+  struct Kernel {
+    struct Descriptor {
+      static constexpr str_t name = "kernel";
+      static constexpr SemanticVersion version = {0, 0, 0};
+    };
+
+    struct VTable;
+    using Interface = InterfaceT<VTable>;
+
+    struct VTable {
+      void (*register_interface)(Interface* ctx, zinc::Interface* iface);
+      void (*unregister_interface)(Interface* ctx, zinc::Interface* iface);
+
+      std::size_t (*num_avail_interfaces)(Interface* ctx);
+      void (*get_avail_interfaces)(Interface* ctx, zinc::Interface** ifaces);
+
+      void (*load_library_file)(Interface* ctx, str_t filename);
+      void (*unload_library_file)(Interface* ctx, str_t filename);
+
+      int (*load_plugin)(Interface* ctx, str_t filename, str_t pluginname);
+      int (*unload_plugin)(Interface* ctx, str_t filename, str_t pluginname);
+    };
+
+    using Request = InterfaceRequestT<Descriptor>;
+
+    template<class T, std::size_t offset>
+    struct Impl {
+      using ProviderT = InterfaceProviderT<Descriptor, T, Interface, offset>;
+
+      using Convert =
+        StaticOffsetConvert<T, Interface, offset>;
+
+      static const VTable static_vtable;
+      static const Interface interface;
+    };
+  };
+
+  template<class T, std::size_t offset>
+  const Kernel::VTable
+  Kernel::Impl<T,offset>::static_vtable = {
+    make_thunk3<Interface, DDECLTYPE(&T::register_interface), Convert>::func,
+    make_thunk3<Interface, DDECLTYPE(&T::unregister_interface), Convert>::func,
+    make_thunk3<Interface, DDECLTYPE(&T::num_avail_interfaces), Convert>::func,
+    make_thunk3<Interface, DDECLTYPE(&T::get_avail_interfaces), Convert>::func,
+
+    make_thunk3<Interface, DDECLTYPE(&T::load_library_file), Convert>::func,
+    make_thunk3<Interface, DDECLTYPE(&T::unload_library_file), Convert>::func,
+    make_thunk3<Interface, DDECLTYPE(&T::load_plugin), Convert>::func,
+    make_thunk3<Interface, DDECLTYPE(&T::unload_plugin), Convert>::func,
+  };
+
+  template<class T, std::size_t offset>
+  const Kernel::Interface
+  Kernel::Impl<T,offset>::interface = {
+    &Kernel::Impl<T,offset>::static_vtable,
+    &Kernel::Impl<T,offset>::ProviderT::provider
+  };
+
+}
+
+#endif
+
+// Local Variables:
+// mode: c++
+// End:

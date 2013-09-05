@@ -1,0 +1,44 @@
+#ifndef _SEMANTIC_VERSION_HPP_
+#define _SEMANTIC_VERSION_HPP_
+
+#include <iostream>
+#include <sstream>
+
+struct SemanticVersion {
+  unsigned short major;
+  unsigned short minor;
+  unsigned short patch;
+  // TODO: Prerelease field
+  // TODO: Build metadata field
+  unsigned short padding__;
+};
+
+inline std::ostream& operator<<(std::ostream& os, SemanticVersion sv) {
+  std::stringstream ss;
+  ss << sv.major << "." << sv.minor << "." << sv.patch;
+  os << ss.str();
+  return os;
+}
+
+inline bool operator==(SemanticVersion sv1, SemanticVersion sv2) {
+  return sv1.major == sv2.major
+    && sv1.minor == sv2.minor
+    && sv1.patch == sv2.patch;
+}
+inline bool operator!=(SemanticVersion sv1, SemanticVersion sv2) {
+  return !(sv1 == sv2);
+}
+
+inline bool compatible(SemanticVersion library, SemanticVersion required) {
+  if (library == required) return true;
+  if (library.major == 0) return false;
+  if (library.major != required.major) return false;
+  if (library.minor < required.minor) return false;
+  return true;
+}
+
+#endif
+
+// Local Variables:
+// mode: c++
+// End:

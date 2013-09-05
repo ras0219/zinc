@@ -64,9 +64,13 @@ void IRCSession::msg(string_t target, string_t m) {
   if (irc_cmd_msg( session, target, m))
     throw std::runtime_error{"Could not send message."};
 }
+void IRCSession::notice(string_t target, string_t m) {
+  if (irc_cmd_notice( session, target, m))
+    throw std::runtime_error{"Could not send notice."};
+}
 void IRCSession::me(string_t target, string_t m) {
   if (irc_cmd_me( session, target, m))
-    throw std::runtime_error{"Could not send message."};
+    throw std::runtime_error{"Could not send me."};
 }
 void IRCSession::invite(string_t nick, string_t channel) {
   if (irc_cmd_invite( session, nick, channel))

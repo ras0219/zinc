@@ -3,114 +3,113 @@
 
 #include <string>
 #include <map>
-extern "C" {
-#include <dlfcn.h>
-}
+#include <vector>
+#include <algorithm>
+#include <cassert>
+#include <zinc_plugin>
+#include <zinc_dlfcn>
+#include <zinc_kernel>
 
-#include "zinc_plugin"
+namespace zinc {
+  struct LibraryManager {
+    typedef std::map<std::string, LibraryHandle*> libraries_t;
+    typedef libraries_t::iterator iterator;
 
-namespace pnp {
-
-  ///////////////////////////////////////////////////////////////
-  // Wrapper for dlopen,dlsym,dlclose that throws c++ exceptions
-  using Handle = void*;
-
-  Handle open_dl(const char*, int);
-
-  void* open_sym_internal(Handle, const char*);
-  template<class F>
-  inline F open_sym(Handle h, const std::string& s) {
-    return static_cast<F>(open_sym_internal(h, s.c_str()));
-  }
-  template<class F>
-  inline F open_sym(Handle h, const char* s) {
-    return static_cast<F>(open_sym_internal(h, s));
-  }
-
-  void close_dl(Handle);
-  ///////////////////////////////////////////////////////////////
-
-  ///////////////////////////////////////////////////////////////
-  struct DynamicLib {
-    DynamicLib(const char*, int);
-    DynamicLib(const std::string&, int);
-    ~DynamicLib();
-
-    template<class F>
-    inline F open_sym(const std::string& s) {
-      F rptr;
-      * (void**)(&rptr) = open_sym_internal(hndl, s.c_str());
-      return rptr;
-    }
-    template<class F>
-    inline F open_sym(const char* s) {
-      F rptr;
-      * (void**)(&rptr) = open_sym_internal(hndl, s);
-      return rptr;
+    ~LibraryManager() {
+      auto it = libraries.begin();
+      while (it != libraries.end())
+        unload_library_file(it++);
     }
 
-  private:
-    Handle hndl;
-  };
-  ///////////////////////////////////////////////////////////////
+    LibraryHandle* load_library_file(const std::string& filename);
 
-  ///////////////////////////////////////////////////////////////
-  struct LibraryInstance {
-    // typedef std::shared_ptr< LibraryInstance > sptr;
-    // typedef std::shared_ptr< const LibraryInstance > const_sptr;
-    typedef LibraryInstance* sptr;
-    typedef const LibraryInstance* const_sptr;
+    // Cannot unload libraries at the moment
+    inline void unload_library_file(const std::string& filename) { }
+    inline void unload_library_file(LibraryHandle* lib) { }
+    inline void unload_library_file(iterator it) { }
 
-    LibraryInstance(const std::string& fname);
-    ~LibraryInstance();
-
-    DynamicLib hndl;
-
-    std::string filename;
-
-    pnp_module_t* module_info;
-  };
-  ///////////////////////////////////////////////////////////////
-
-  ///////////////////////////////////////////////////////////////
-  struct ZincPluginHost {
-  private:
-    typedef std::map<std::string, LibraryInstance::sptr> s_to_linst_map_t;
-    typedef std::multimap<LibraryInstance::sptr, PluginBase*> linst_to_plugin_map_t;
-    typedef s_to_linst_map_t::iterator lib_iterator;
-    typedef linst_to_plugin_map_t::iterator plugin_iterator;
-  public:
-    ~ZincPluginHost();
-
-    void add_library_file(const std::string& filename);
-    // TODO: these guys
-    //void reload_library_file(const std::string& filename);
-    //void unload_library_file(const std::string& filename);
-
-    //void reload_library(LibraryInstance::sptr lib);
-    //void unload_library(LibraryInstance::sptr lib);
-
-    std::size_t num_libraries();
-    lib_iterator libraries_begin();
-    lib_iterator libraries_end();
-
-    std::size_t num_plugins();
-    plugin_iterator plugins_begin();
-    plugin_iterator plugins_end();
-
-    std::size_t num_plugins(LibraryInstance::sptr lib);
-    plugin_iterator plugins_begin(LibraryInstance::sptr lib);
-    plugin_iterator plugins_end(LibraryInstance::sptr lib);
-
-    PluginBase* load_plugin(const std::string& filename,
-                            const std::string& plugin_name,
-                            PluginHost* ph);
+    Plugin* locate_plugin(const std::string& filename, const std::string& pluginname);
 
   private:
-    s_to_linst_map_t filename_to_linst;
-    linst_to_plugin_map_t linst_to_plugins;
+    libraries_t libraries;
   };
-  ///////////////////////////////////////////////////////////////
+
+  struct InterfaceUnifier {
+    std::vector<Interface*> available;
+
+    // returns nullptr upon failure
+    Interface*
+    unify_request(const InterfaceRequest& req);
+
+    // returns size 0 vector upon failure
+    std::vector<Interface*>
+    unify_request(std::size_t num_reqs, const InterfaceRequest* reqs);
+
+    // returns size 0 vector upon failure
+    inline std::vector<Interface*>
+    unify_request(const Plugin* plug)
+      { return unify_request(plug->num_reqs, plug->reqs); }
+  };
+
+  struct DefaultKernel {
+    DefaultKernel()
+      : kernel(Kernel
+               ::Impl<DefaultKernel, offsetof(DefaultKernel, kernel)>
+               ::interface),
+        unifier{{(Interface*)&kernel}}
+      { }
+
+    inline void register_interface(zinc::Interface* iface) {
+      unifier.available.push_back(iface);
+    }
+    inline void unregister_interface(zinc::Interface* iface) {
+      auto it = std::find(unifier.available.begin(),
+                          unifier.available.end(),
+                          iface);
+      if (it != unifier.available.end())
+        unifier.available.erase(it);
+    }
+
+    inline std::size_t num_avail_interfaces() { return unifier.available.size(); }
+    inline void get_avail_interfaces(zinc::Interface** ifaces) {
+      for (auto i : unifier.available)
+        *ifaces++ = i;
+    }
+
+    inline void load_library_file(str_t filename) {
+      libman.load_library_file(filename);
+    }
+
+    inline void unload_library_file(str_t filename) {
+      libman.unload_library_file(filename);
+    }
+
+    inline int load_plugin(str_t filename, str_t pluginname) {
+      Plugin* plug = libman.locate_plugin(filename, pluginname);
+      if (plug == nullptr)
+        // Could not find plugin
+        return -1;
+      std::vector<Interface*> ifaces = unifier.unify_request(plug);
+      if (ifaces.size() != plug->num_reqs)
+        // Could not satisfy all requrirements
+        return -2;
+      if (plug->install == nullptr)
+        // Plugin is invalid
+        return -3;
+      plug->install(ifaces.data());
+      return 0;
+    }
+
+    inline int unload_plugin(str_t filename, str_t pluginname) {
+      // currently cannot unload plugins
+      return -1;
+    }
+
+    Kernel::Interface kernel;
+
+    LibraryManager libman;
+    InterfaceUnifier unifier;
+  };
 }
 
 #endif

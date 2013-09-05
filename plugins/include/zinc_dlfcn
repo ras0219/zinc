@@ -1,0 +1,22 @@
+#ifndef _ZINC_DLFCN_HPP_
+#define _ZINC_DLFCN_HPP_
+
+#include <zinc_plugin>
+extern "C" {
+#include <dlfcn.h>
+}
+
+namespace zinc {
+
+  struct LibraryHandle {
+    LibraryHandle(const std::string& fname, int flags = RTLD_NOW | RTLD_LOCAL);
+    LibraryHandle(const char* fname, int flags = RTLD_NOW | RTLD_LOCAL);
+    ~LibraryHandle();
+
+    std::string filename;
+    pnp_module_t* pmt;
+    void* hndl;
+  };
+}
+
+#endif

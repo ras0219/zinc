@@ -1,0 +1,58 @@
+#ifndef _ZINC_CHANNELIO_HPP_
+#define _ZINC_CHANNELIO_HPP_
+
+#include <semantic_version>
+#include <zinc_interface>
+#include <thunk_magic>
+
+namespace zinc {
+
+  struct ChannelIO {
+    struct Descriptor {
+      static constexpr str_t name = "channelio";
+      static constexpr SemanticVersion version = {0, 0, 0};
+    };
+
+    struct VTable;
+    using Interface = InterfaceT<VTable>;
+
+    struct VTable {
+      void (*join_channel)(Interface* ctx, str_t channel);
+      void (*send_message)(Interface* ctx, str_t channel, str_t msg);
+    };
+
+    using Request = InterfaceRequestT<Descriptor>;
+
+    template<class T, std::size_t offset>
+    struct Impl {
+      using ProviderT = InterfaceProviderT<Descriptor, T, Interface, offset>;
+
+      using Convert =
+        StaticOffsetConvert<T, Interface, offset>;
+      
+      static const VTable static_vtable;
+      static const Interface interface;
+    };
+  };
+
+  template<class T, std::size_t offset>
+  const ChannelIO::VTable
+  ChannelIO::Impl<T,offset>::static_vtable = {
+    make_thunk3<Interface, DDECLTYPE(&T::join_channel), Convert>::func,
+    make_thunk3<Interface, DDECLTYPE(&T::send_message), Convert>::func,
+  };
+
+  template<class T, std::size_t offset>
+  const ChannelIO::Interface
+  ChannelIO::Impl<T,offset>::interface = {
+    &ChannelIO::Impl<T,offset>::static_vtable,
+    &ChannelIO::Impl<T,offset>::ProviderT::provider
+  };
+
+}
+
+#endif
+
+// Local Variables:
+// mode: c++
+// End:

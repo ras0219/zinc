@@ -1,0 +1,65 @@
+#ifndef _ZINC_INTERACTIVE_HPP_
+#define _ZINC_INTERACTIVE_HPP_
+
+#include <semantic_version>
+#include <zinc_interface>
+#include <zinc_io>
+
+namespace zinc {
+
+  typedef void (*command_cb)(OStream::Interface* ctx, str_t msg);
+
+  struct Interactive {
+    struct Descriptor {
+      static constexpr str_t name = "interactive";
+      static constexpr SemanticVersion version = {0, 1, 0};
+    };
+
+    struct VTable;
+    using Interface = InterfaceT<VTable>;
+
+    struct VTable {
+      int (*register_command)(Interface* ctx, str_t cmd, command_cb cb);
+      int (*unregister_command)(Interface* ctx, str_t cmd);
+
+      std::size_t (*num_avail_commands)(Interface* ctx);
+      // NOTE: is invalidated if a command is registered or unregistered
+      void (*get_avail_commands)(Interface* ctx, str_t* cmds);
+    };
+
+    using Request = InterfaceRequestT<Descriptor>;
+
+    template<class T, std::size_t offset>
+    struct Impl {
+      using ProviderT = InterfaceProviderT<Descriptor, T, Interface, offset>;
+
+      using Convert =
+        StaticOffsetConvert<T, Interface, offset>;
+      
+      static const VTable static_vtable;
+      static const Interface interface;
+    };
+  };
+  
+  template<class T, std::size_t offset>
+  const Interactive::VTable
+  Interactive::Impl<T,offset>::static_vtable = {
+    make_thunk3<Interface,DDECLTYPE(&T::register_command),Convert>::func,
+    make_thunk3<Interface,DDECLTYPE(&T::unregister_command),Convert>::func,
+    make_thunk3<Interface,DDECLTYPE(&T::num_avail_commands),Convert>::func,
+    make_thunk3<Interface,DDECLTYPE(&T::get_avail_commands),Convert>::func,
+  };
+
+  template<class T, std::size_t offset>
+  const Interactive::Interface
+  Interactive::Impl<T,offset>::interface = {
+    &Interactive::Impl<T,offset>::static_vtable,
+    &Interactive::Impl<T,offset>::ProviderT::provider
+  };
+}
+
+#endif
+
+// Local Variables:
+// mode: c++
+// End:
